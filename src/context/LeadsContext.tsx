@@ -3,9 +3,9 @@
 import React, { createContext, useState, useCallback, ReactNode, useMemo, useEffect } from 'react';
 import { Lead, Interaction, Task, Responsiveness, LeadSegment, InteractionFormData, LeadInterest, LeadIntent, Engagement, OutcomeType } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { add, isPast } from 'date-fns';
+import { add, subDays, isPast } from 'date-fns';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, getDocs, query, where, Timestamp, orderBy, doc, updateDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, Timestamp, orderBy, doc, updateDoc, writeBatch, serverTimestamp, getCountFromServer } from 'firebase/firestore';
 
 interface LeadsContextType {
   leads: Lead[];
@@ -29,6 +29,58 @@ export const LeadsContext = createContext<LeadsContextType>({
   completeTask: async () => {},
 });
 
+const seedDatabase = async () => {
+    const batch = writeBatch(db);
+    const now = new Date();
+
+    const leadsToCreate = [
+        { id: 'lead1', name: 'Alex Johnson', phone: '111-222-3333', course: 'UX Design', score: 85, status: 'Active' as const, segment: 'Standard Follow-up' as const, lastInteractionAt: subDays(now, 1)},
+        { id: 'lead2', name: 'Brenda Smith', phone: '222-333-4444', course: 'Data Science', score: 95, status: 'Active' as const, segment: 'Awaiting Event' as const, lastInteractionAt: subDays(now, 2) },
+        { id: 'lead3', name: 'Charlie Brown', phone: '333-444-5555', course: 'Web Development', score: 60, status: 'Active' as const, segment: 'Needs Nurturing' as const, lastInteractionAt: subDays(now, 4) },
+        { id: 'lead4', name: 'Diana Prince', phone: '444-555-6666', course: 'AI Engineering', score: 70, status: 'Active' as const, segment: 'Action Required' as const, lastInteractionAt: subDays(now, 0) },
+        { id: 'lead5', name: 'Ethan Hunt', phone: '555-666-7777', course: 'Cybersecurity', score: 90, status: 'Active' as const, segment: 'Payment Pending' as const, lastInteractionAt: subDays(now, 1) },
+        { id: 'lead6', name: 'Fiona Glenanne', phone: '666-777-8888', course: 'UX Design', score: 25, status: 'Archived' as const, segment: 'Standard Follow-up' as const, lastInteractionAt: subDays(now, 10) },
+        { id: 'lead7', name: 'George Costanza', phone: '777-888-9999', course: 'Product Management', score: 55, status: 'Active' as const, segment: 'Standard Follow-up' as const, lastInteractionAt: subDays(now, 6) }
+    ];
+
+    const tasksToCreate = [
+        { leadId: 'lead1', description: 'Follow up with Alex Johnson (Day 3)', dueDate: add(now, { days: 2 }), segment: 'Standard Follow-up' as const, completed: false },
+        { leadId: 'lead2', description: '🗓️ Demo with Brenda Smith', dueDate: add(now, { days: 3 }), segment: 'Awaiting Event' as const, completed: false },
+        { leadId: 'lead3', description: 'Nurture Charlie Brown: Send value content', dueDate: add(now, { days: 1 }), segment: 'Needs Nurturing' as const, completed: false },
+        { leadId: 'lead4', description: '🛠️ Send course brochure', dueDate: now, segment: 'Action Required' as const, completed: false },
+        { leadId: 'lead5', description: '💰 Close Ethan Hunt: Follow up on payment link', dueDate: add(now, { days: 1 }), segment: 'Payment Pending' as const, completed: false },
+        { leadId: 'lead7', description: 'Follow up with George Costanza (Day 7)', dueDate: add(now, { days: 1 }), segment: 'Standard Follow-up' as const, completed: false }
+    ];
+    
+    const interactionsToCreate = [
+        { leadId: 'lead1', date: subDays(now, 1), interest: 'High', intent: 'High', engagement: 'Positive', interactionScore: 55, previousScore: 30, newScore: 85},
+        { leadId: 'lead2', date: subDays(now, 2), interest: 'Love', intent: 'High', engagement: 'Positive', interactionScore: 55, previousScore: 40, newScore: 95, outcome: 'Demo', outcomeDetail: add(now, {days: 3}).toISOString()},
+        { leadId: 'lead3', date: subDays(now, 4), interest: 'Unsure', intent: 'Neutral', engagement: 'Neutral', interactionScore: -10, previousScore: 70, newScore: 60},
+        { leadId: 'lead4', date: now, interest: 'High', intent: 'Neutral', engagement: 'Positive', interactionScore: 5, previousScore: 65, newScore: 70, outcome: 'NeedsInfo', outcomeDetail: 'Send course brochure'},
+        { leadId: 'lead5', date: subDays(now, 1), interest: 'Love', intent: 'High', engagement: 'Positive', interactionScore: 55, previousScore: 35, newScore: 90, outcome: 'PayLink'},
+        { leadId: 'lead6', date: subDays(now, 10), interest: 'Low', intent: 'Low', engagement: 'Negative', interactionScore: -50, previousScore: 75, newScore: 25},
+        { leadId: 'lead7', date: subDays(now, 6), interest: 'Unsure', intent: 'Low', engagement: 'Neutral', interactionScore: -30, previousScore: 85, newScore: 55},
+    ]
+
+    leadsToCreate.forEach(lead => {
+        const leadRef = doc(db, "leads", lead.id);
+        batch.set(leadRef, { ...lead, createdAt: serverTimestamp() });
+    });
+
+    tasksToCreate.forEach(task => {
+        const taskRef = doc(collection(db, "tasks"));
+        batch.set(taskRef, task);
+    });
+
+    interactionsToCreate.forEach(interaction => {
+        const interactionRef = doc(collection(db, "interactions"));
+        batch.set(interactionRef, interaction);
+    })
+
+    await batch.commit();
+}
+
+
 export const LeadsProvider = ({ children }: { children: ReactNode }) => {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [interactions, setInteractions] = useState<Interaction[]>([]);
@@ -36,55 +88,63 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (force = false) => {
     setIsLoading(true);
     try {
-      const leadsQuery = query(collection(db, "leads"));
-      const leadsSnapshot = await getDocs(leadsQuery);
-      const leadsData = leadsSnapshot.docs.map(doc => {
-          const data = doc.data();
-          return { 
-              id: doc.id, 
-              ...data, 
-              createdAt: (data.createdAt as Timestamp)?.toDate(),
-              lastInteractionAt: (data.lastInteractionAt as Timestamp)?.toDate()
-          } as Lead;
-      });
+        const leadsColl = collection(db, "leads");
 
-      // Sort leads by last interaction date
-      leadsData.sort((a, b) => {
-        const dateA = a.lastInteractionAt ? (a.lastInteractionAt as Date).getTime() : 0;
-        const dateB = b.lastInteractionAt ? (b.lastInteractionAt as Date).getTime() : 0;
-        return dateB - dateA;
-      });
-      setLeads(leadsData);
+        // Check if DB is empty, if so, seed it.
+        if (!force) {
+            const countSnapshot = await getCountFromServer(query(leadsColl, where('status', '==', 'Active')));
+            if (countSnapshot.data().count === 0) {
+                await seedDatabase();
+            }
+        }
 
-      if (leadsData.length > 0) {
-        const leadIds = leadsData.map(l => l.id);
-        
-        const interactionsQuery = query(collection(db, "interactions"), where("leadId", "in", leadIds));
-        const interactionsSnapshot = await getDocs(interactionsQuery);
-        const interactionsData = interactionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate() })) as Interaction[];
-        setInteractions(interactionsData);
+        const leadsQuery = query(leadsColl);
+        const leadsSnapshot = await getDocs(leadsQuery);
+        const leadsData = leadsSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return { 
+                id: doc.id, 
+                ...data, 
+                createdAt: (data.createdAt as Timestamp)?.toDate(),
+                lastInteractionAt: (data.lastInteractionAt as Timestamp)?.toDate()
+            } as Lead;
+        });
 
-        const tasksQuery = query(collection(db, "tasks"), where("leadId", "in", leadIds), where("completed", "==", false));
-        const tasksSnapshot = await getDocs(tasksQuery);
-        const tasksData = tasksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), dueDate: (doc.data().dueDate as Timestamp).toDate() })) as Task[];
-        setTasks(tasksData);
-      } else {
-        setInteractions([]);
-        setTasks([]);
-      }
+        leadsData.sort((a, b) => {
+            const dateA = a.lastInteractionAt ? (a.lastInteractionAt as Date).getTime() : 0;
+            const dateB = b.lastInteractionAt ? (b.lastInteractionAt as Date).getTime() : 0;
+            return dateB - dateA;
+        });
+        setLeads(leadsData);
+
+        if (leadsData.length > 0) {
+            const leadIds = leadsData.map(l => l.id);
+            const interactionsQuery = query(collection(db, "interactions"), where("leadId", "in", leadIds));
+            const interactionsSnapshot = await getDocs(interactionsQuery);
+            const interactionsData = interactionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate() })) as Interaction[];
+            setInteractions(interactionsData);
+
+            const tasksQuery = query(collection(db, "tasks"), where("leadId", "in", leadIds), where("completed", "==", false));
+            const tasksSnapshot = await getDocs(tasksQuery);
+            const tasksData = tasksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), dueDate: (doc.data().dueDate as Timestamp).toDate() })) as Task[];
+            setTasks(tasksData);
+        } else {
+            setInteractions([]);
+            setTasks([]);
+        }
 
     } catch (error) {
-      console.error("Error fetching data from Firestore:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to load data from the database.",
-      });
+        console.error("Error fetching data from Firestore:", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Failed to load data from the database.",
+        });
     } finally {
-      setIsLoading(false);
+        setIsLoading(false);
     }
   }, [toast]);
 
@@ -139,7 +199,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
   }, [toast]);
 
 
-  const addLead = useCallback(async (leadData: Omit<Lead, 'id' | 'score' | 'createdAt' | 'status' | 'segment'>) => {
+  const addLead = useCallback(async (leadData: Omit<Lead, 'id' | 'score' | 'createdAt' | 'status' | 'segment' | 'lastInteractionAt'>) => {
     setIsLoading(true);
     try {
       const newLeadData = {
@@ -215,7 +275,6 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       
       const batch = writeBatch(db);
 
-      // 1. Create New Interaction
       const newInteractionData = {
         ...interactionData,
         leadId,
@@ -227,7 +286,6 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       const interactionRef = doc(collection(db, "interactions"));
       batch.set(interactionRef, newInteractionData);
       
-      // 2. Determine New Segment and Task
       let newSegment: LeadSegment = lead.segment;
       let newTaskData: Omit<Task, 'id' | 'completed'> | null = null;
       const outcome = interactionData.outcome;
@@ -261,7 +319,6 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         const taskRef = doc(collection(db, "tasks"));
         batch.set(taskRef, finalTaskData);
 
-         // Invalidate old tasks for this lead
         const oldTasksQuery = query(collection(db, "tasks"), where("leadId", "==", leadId), where("completed", "==", false));
         const oldTasksSnapshot = await getDocs(oldTasksQuery);
         oldTasksSnapshot.forEach(doc => {
@@ -269,7 +326,6 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         });
       }
       
-      // 3. Update Lead
       const leadRef = doc(db, "leads", leadId);
       batch.update(leadRef, { 
         score: updatedLeadScore, 
@@ -280,8 +336,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       
       await batch.commit();
 
-      // 4. Update State
-      await fetchData(); // Refetch all data to ensure consistency
+      await fetchData(true);
 
       toast({
         title: "Interaction Logged!",
