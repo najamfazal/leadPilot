@@ -6,19 +6,28 @@ import Link from 'next/link';
 import { LeadsContext } from '@/context/LeadsContext';
 import LeadDetails from '@/components/leads/LeadDetails';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import Logo from '@/components/Logo';
 
 export default function LeadDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { leads, interactions } = useContext(LeadsContext);
+  const { leads, interactions, isLoading } = useContext(LeadsContext);
 
   const leadId = params.id as string;
+  
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   const lead = leads.find(l => l.id === leadId);
   const leadInteractions = interactions
     .filter(i => i.leadId === leadId)
-    .sort((a, b) => b.date.getTime() - a.date.getTime());
+    .sort((a, b) => (b.date as Date).getTime() - (a.date as Date).getTime());
 
   if (!lead) {
     return (

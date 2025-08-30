@@ -1,16 +1,18 @@
+import { Timestamp } from 'firebase/firestore';
+
 export type Lead = {
   id: string;
   name: string;
   phone: string;
   course: string;
   score: number;
-  createdAt: Date;
+  createdAt: Date | Timestamp;
 };
 
 export type Interaction = {
   id: string;
   leadId: string;
-  date: Date;
+  date: Date | Timestamp;
   intent: 'High' | 'Medium' | 'Low';
   interest: 'High' | 'Medium' | 'Low';
   action: 'None' | 'Demo Scheduled' | 'Visit Scheduled' | 'Payment Link Sent';
@@ -24,7 +26,7 @@ export type Task = {
   id: string;
   leadId: string;
   description: string;
-  dueDate: Date;
+  dueDate: Date | Timestamp;
   completed: boolean;
 };
 

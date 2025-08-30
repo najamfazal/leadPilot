@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { PlusCircle, Search } from 'lucide-react';
+import { PlusCircle, Search, Loader2 } from 'lucide-react';
 import AddLeadForm from '@/components/leads/AddLeadForm';
 import LeadList from '@/components/leads/LeadList';
 import Logo from '@/components/Logo';
@@ -21,7 +21,7 @@ import { LeadsContext } from '@/context/LeadsContext';
 export default function Home() {
   const [isAddLeadOpen, setIsAddLeadOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const { leads } = useContext(LeadsContext);
+  const { leads, isLoading } = useContext(LeadsContext);
 
   const filteredLeads = useMemo(() => {
     if (!searchQuery) return leads;
@@ -60,27 +60,33 @@ export default function Home() {
       </header>
       <main className="flex-1 overflow-y-auto">
         <div className="container mx-auto p-4 md:p-6">
-          <Tabs defaultValue="tasks" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="tasks">Tasks</TabsTrigger>
-              <TabsTrigger value="leads">Leads</TabsTrigger>
-            </TabsList>
-            <TabsContent value="tasks" className="mt-4">
-              <TaskList />
-            </TabsContent>
-            <TabsContent value="leads" className="mt-4 space-y-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Filter by name..."
-                  className="pl-10"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-              <LeadList leads={filteredLeads} />
-            </TabsContent>
-          </Tabs>
+          {isLoading && !leads.length ? (
+             <div className="flex items-center justify-center h-64">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+             </div>
+          ) : (
+            <Tabs defaultValue="tasks" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="tasks">Tasks</TabsTrigger>
+                <TabsTrigger value="leads">Leads</TabsTrigger>
+              </TabsList>
+              <TabsContent value="tasks" className="mt-4">
+                <TaskList />
+              </TabsContent>
+              <TabsContent value="leads" className="mt-4 space-y-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Filter by name..."
+                    className="pl-10"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                <LeadList leads={filteredLeads} />
+              </TabsContent>
+            </Tabs>
+          )}
         </div>
       </main>
     </div>

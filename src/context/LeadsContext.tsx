@@ -1,10 +1,13 @@
 'use client';
 
-import React, { createContext, useState, useCallback, ReactNode, useMemo } from 'react';
+import React, { createContext, useState, useCallback, ReactNode, useMemo, useEffect } from 'react';
 import { Lead, Interaction, LeadTrait, Task, Responsiveness } from '@/lib/types';
 import { calculateLeadScore } from '@/ai/flows/automatic-scoring-algorithm';
 import { useToast } from '@/hooks/use-toast';
 import { add, differenceInHours } from 'date-fns';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, getDocs, query, where, Timestamp, orderBy, doc, updateDoc, writeBatch } from 'firebase/firestore';
+
 
 interface LeadsContextType {
   leads: Lead[];
@@ -29,29 +32,53 @@ export const LeadsContext = createContext<LeadsContextType>({
   getLeadResponsiveness: () => 'cold',
 });
 
-const initialLeads: Lead[] = [
-  { id: '1', name: 'Alice Johnson', phone: '123-456-7890', course: 'Web Development', score: 85, createdAt: new Date() },
-  { id: '2', name: 'Bob Williams', phone: '234-567-8901', course: 'Data Science', score: 35, createdAt: new Date() },
-  { id: '3', name: 'Charlie Brown', phone: '345-678-9012', course: 'UX Design', score: 60, createdAt: new Date() },
-];
-
-const initialInteractions: Interaction[] = [
-    { id: '101', leadId: '1', date: new Date(Date.now() - 8 * 60 * 60 * 1000), intent: 'High', interest: 'High', action: 'Demo Scheduled', traits: ['Pays for Value'], interactionScore: 60, previousScore: 25, newScore: 85},
-    { id: '102', leadId: '2', date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), intent: 'Low', interest: 'Low', action: 'None', traits: ['Browser-not-Buyer'], interactionScore: -45, previousScore: 80, newScore: 35},
-    { id: '103', leadId: '3', date: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000), intent: 'Medium', interest: 'Medium', action: 'None', traits: [], interactionScore: 10, previousScore: 50, newScore: 60},
-];
-
-const initialTasks: Task[] = [
-    { id: '201', leadId: '1', description: 'Follow up with Alice Johnson (Day 1)', dueDate: add(new Date(), {days: 1}), completed: false },
-    { id: '202', leadId: '2', description: 'Follow up with Bob Williams (Day 3)', dueDate: new Date(), completed: false },
-]
-
 export const LeadsProvider = ({ children }: { children: ReactNode }) => {
-  const [leads, setLeads] = useState<Lead[]>(initialLeads);
-  const [interactions, setInteractions] = useState<Interaction[]>(initialInteractions);
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
-  const [isLoading, setIsLoading] = useState(false);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [interactions, setInteractions] = useState<Interaction[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const leadsQuery = query(collection(db, "leads"), orderBy("createdAt", "desc"));
+      const leadsSnapshot = await getDocs(leadsQuery);
+      const leadsData = leadsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: (doc.data().createdAt as Timestamp).toDate() })) as Lead[];
+      setLeads(leadsData);
+
+      if (leadsData.length > 0) {
+        const leadIds = leadsData.map(l => l.id);
+        const interactionsQuery = query(collection(db, "interactions"), where("leadId", "in", leadIds));
+        const interactionsSnapshot = await getDocs(interactionsQuery);
+        const interactionsData = interactionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate() })) as Interaction[];
+        setInteractions(interactionsData);
+
+        const tasksQuery = query(collection(db, "tasks"), where("leadId", "in", leadIds), where("completed", "==", false));
+        const tasksSnapshot = await getDocs(tasksQuery);
+        const tasksData = tasksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), dueDate: (doc.data().dueDate as Timestamp).toDate() })) as Task[];
+        setTasks(tasksData);
+      } else {
+        setInteractions([]);
+        setTasks([]);
+      }
+
+    } catch (error) {
+      console.error("Error fetching data from Firestore:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to load data from the database.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
 
   const getLeadResponsiveness = useCallback((leadId: string): Responsiveness => {
     const lastInteraction = interactions
@@ -65,18 +92,31 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     return 'cold';
   }, [interactions]);
 
-  const addLead = useCallback((leadData: Omit<Lead, 'id' | 'score' | 'createdAt'>) => {
-    const newLead: Lead = {
-      ...leadData,
-      id: new Date().toISOString(),
-      score: 50,
-      createdAt: new Date(),
-    };
-    setLeads(prevLeads => [newLead, ...prevLeads]);
-    toast({
-        title: 'Lead Added Successfully!',
-        description: `${newLead.name} has been added to your pipeline.`,
-    });
+  const addLead = useCallback(async (leadData: Omit<Lead, 'id' | 'score' | 'createdAt'>) => {
+    setIsLoading(true);
+    try {
+      const newLeadData = {
+        ...leadData,
+        score: 50,
+        createdAt: new Date(),
+      };
+      const docRef = await addDoc(collection(db, "leads"), newLeadData);
+      const newLead: Lead = { ...newLeadData, id: docRef.id };
+      setLeads(prevLeads => [newLead, ...prevLeads]);
+      toast({
+          title: 'Lead Added Successfully!',
+          description: `${newLead.name} has been added to your pipeline.`,
+      });
+    } catch (error) {
+       console.error("Error adding lead:", error);
+       toast({
+           variant: "destructive",
+           title: "Database Error",
+           description: "Could not add the new lead.",
+       });
+    } finally {
+        setIsLoading(false);
+    }
   }, [toast]);
 
   const getNextFollowUpDay = (leadId: string): { day: number, date: Date } => {
@@ -85,7 +125,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     if (followUpTasks.length === 0) {
         return { day: 1, date: add(new Date(), { days: 1 }) };
     }
-    const lastFollowUpDayMatch = followUpTasks[followUpTasks.length - 1].description.match(/Day (\d+)/);
+    const lastFollowUpDayMatch = [...followUpTasks].sort((a,b) => b.dueDate.getTime() - a.dueDate.getTime())[0].description.match(/Day (\d+)/);
     const lastFollowUpDay = lastFollowUpDayMatch ? parseInt(lastFollowUpDayMatch[1]) : 0;
     const nextIndex = sequence.indexOf(lastFollowUpDay) + 1;
 
@@ -117,10 +157,11 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       });
       
       const { updatedLeadScore, interactionScore } = scoringResult;
+      
+      const batch = writeBatch(db);
 
-      const newInteraction: Interaction = {
+      const newInteractionData = {
         ...interactionData,
-        id: new Date().toISOString(),
         leadId,
         date: new Date(),
         interactionScore,
@@ -128,21 +169,32 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         newScore: updatedLeadScore,
       };
 
-      setLeads(prevLeads =>
-        prevLeads.map(l => (l.id === leadId ? { ...l, score: updatedLeadScore } : l))
-      );
-      setInteractions(prevInteractions => [newInteraction, ...prevInteractions]);
+      const interactionRef = doc(collection(db, "interactions"));
+      batch.set(interactionRef, newInteractionData);
+      
+      const leadRef = doc(db, "leads", leadId);
+      batch.update(leadRef, { score: updatedLeadScore });
 
       const { day, date } = getNextFollowUpDay(leadId);
-      const newTask: Task = {
-        id: new Date().toISOString(),
+      const newTaskData = {
         leadId,
         description: `Follow up with ${lead.name} (Day ${day})`,
         dueDate: date,
         completed: false,
       };
-      setTasks(prevTasks => [...prevTasks, newTask]);
+      const taskRef = doc(collection(db, "tasks"));
+      batch.set(taskRef, newTaskData);
+      
+      await batch.commit();
 
+      const newInteraction: Interaction = { ...newInteractionData, id: interactionRef.id };
+      const newTask: Task = { ...newTaskData, id: taskRef.id };
+
+      setLeads(prevLeads =>
+        prevLeads.map(l => (l.id === leadId ? { ...l, score: updatedLeadScore } : l))
+      );
+      setInteractions(prevInteractions => [newInteraction, ...prevInteractions]);
+      setTasks(prevTasks => [...prevTasks, newTask]);
 
       toast({
         title: "Interaction Logged!",
@@ -150,11 +202,11 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       });
 
     } catch (error) {
-        console.error("Failed to calculate lead score:", error);
+        console.error("Failed to calculate lead score or update database:", error);
         toast({
             variant: "destructive",
-            title: "Scoring Error",
-            description: "Could not update lead score due to an AI error.",
+            title: "Error",
+            description: "Could not log interaction due to an unexpected error.",
         });
     } finally {
         setIsLoading(false);

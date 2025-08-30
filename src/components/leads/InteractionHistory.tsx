@@ -2,10 +2,18 @@ import { Interaction } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ArrowRight, MessageSquare, History } from 'lucide-react';
+import { Timestamp } from 'firebase/firestore';
 
 type InteractionHistoryProps = {
   interactions: Interaction[];
 };
+
+const formatDate = (date: Date | Timestamp) => {
+    if (date instanceof Timestamp) {
+        return date.toDate().toLocaleString();
+    }
+    return date.toLocaleString();
+}
 
 export default function InteractionHistory({ interactions }: InteractionHistoryProps) {
   if (interactions.length === 0) {
@@ -37,7 +45,7 @@ export default function InteractionHistory({ interactions }: InteractionHistoryP
           <div key={interaction.id} className="p-4 border rounded-lg bg-background/50">
             <div className="flex flex-wrap justify-between items-start gap-2 mb-3">
               <p className="text-sm font-semibold text-foreground">
-                {new Date(interaction.date).toLocaleString()}
+                {formatDate(interaction.date)}
               </p>
               <div className="flex items-center gap-2 font-mono text-sm">
                 <span className="text-muted-foreground">{interaction.previousScore}</span>

@@ -35,7 +35,7 @@ export default function LeadList({ leads }: LeadListProps) {
       {leads.map(lead => {
         const lastInteraction = interactions
           .filter(i => i.leadId === lead.id)
-          .sort((a, b) => b.date.getTime() - a.date.getTime())[0];
+          .sort((a, b) => (b.date as Date).getTime() - (a.date as Date).getTime())[0];
         return <LeadListItem key={lead.id} lead={lead} lastInteraction={lastInteraction} />
       })}
     </div>

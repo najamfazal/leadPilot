@@ -3,16 +3,18 @@
 import { useContext, useMemo } from 'react';
 import { LeadsContext } from '@/context/LeadsContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ClipboardCheck, User } from 'lucide-react';
+import { ClipboardCheck, User, Loader2 } from 'lucide-react';
 import { isToday } from 'date-fns';
 import { Badge } from '../ui/badge';
 import ScoreBadge from '../leads/ScoreBadge';
 import Link from 'next/link';
+import { Timestamp } from 'firebase/firestore';
 
 export default function TaskList() {
-    const { tasks, leads, getLeadResponsiveness } = useContext(LeadsContext);
+    const { tasks, leads, getLeadResponsiveness, isLoading } = useContext(LeadsContext);
 
     const calculatedTasks = useMemo(() => {
+        if (!leads.length) return [];
         return tasks.map(task => {
             const lead = leads.find(l => l.id === task.leadId);
             if (!lead) return null;
@@ -22,7 +24,14 @@ export default function TaskList() {
             if (responsiveness === 'hot') responsivenessValue = 30;
             if (responsiveness === 'warm') responsivenessValue = 15;
 
-            const urgencyValue = isToday(task.dueDate) ? 50 : 0;
+            let dueDate: Date;
+            if (task.dueDate instanceof Timestamp) {
+                dueDate = task.dueDate.toDate();
+            } else {
+                dueDate = task.dueDate;
+            }
+
+            const urgencyValue = isToday(dueDate) ? 50 : 0;
 
             const priorityScore = lead.score + responsivenessValue + urgencyValue;
 
@@ -31,6 +40,7 @@ export default function TaskList() {
                 leadName: lead.name,
                 leadScore: lead.score,
                 priorityScore,
+                dueDate,
             }
         }).filter(Boolean);
     }, [tasks, leads, getLeadResponsiveness]);
@@ -38,6 +48,14 @@ export default function TaskList() {
     const sortedTasks = useMemo(() => {
         return calculatedTasks.sort((a, b) => b!.priorityScore - a!.priorityScore);
     }, [calculatedTasks]);
+
+    if (isLoading && sortedTasks.length === 0) {
+        return (
+            <div className="flex justify-center items-center p-8">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        )
+    }
 
     if (sortedTasks.length === 0) {
         return (

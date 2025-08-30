@@ -16,7 +16,7 @@ export default function LeadListItem({ lead, lastInteraction }: LeadListItemProp
 
   const getResponsiveness = () => {
     if (!lastInteraction) return 'cold';
-    const hours = differenceInHours(new Date(), lastInteraction.date);
+    const hours = differenceInHours(new Date(), (lastInteraction.date as Date));
     if (hours < 24) return 'hot';
     if (hours < 72) return 'warm';
     return 'cold';
