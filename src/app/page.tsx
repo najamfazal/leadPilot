@@ -17,19 +17,27 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import TaskList from '@/components/tasks/TaskList';
 import { Input } from '@/components/ui/input';
 import { LeadsContext } from '@/context/LeadsContext';
+import { LeadSegment } from '@/lib/types';
 
 export default function Home() {
   const [isAddLeadOpen, setIsAddLeadOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const { leads, isLoading } = useContext(LeadsContext);
+  const { leads, tasks, isLoading } = useContext(LeadsContext);
 
   const filteredLeads = useMemo(() => {
-    if (!searchQuery) return leads;
+    if (!searchQuery) return leads.filter(lead => lead.status !== 'Archived');
     return leads.filter(lead =>
       lead.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [leads, searchQuery]);
+  
+  const getLeadsBySegment = (segment: LeadSegment) => {
+    return leads.filter(lead => lead.segment === segment);
+  }
 
+  const getActionRequiredTasks = () => {
+    return tasks.filter(task => task.segment === 'Action Required');
+  }
 
   return (
     <div className="flex flex-col h-screen bg-background">
@@ -37,7 +45,7 @@ export default function Home() {
         <div className="container mx-auto flex justify-between items-center p-4">
           <div className="flex items-center gap-2">
             <Logo className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-bold text-foreground">ScoreCard CRM</h1>
+            <h1 className="text-xl font-bold text-foreground">ScoreCard CRM</h1>
           </div>
           <Dialog open={isAddLeadOpen} onOpenChange={setIsAddLeadOpen}>
             <DialogTrigger asChild>
@@ -66,24 +74,36 @@ export default function Home() {
              </div>
           ) : (
             <Tabs defaultValue="tasks" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="tasks">Tasks</TabsTrigger>
                 <TabsTrigger value="leads">Leads</TabsTrigger>
+                <TabsTrigger value="events">Upcoming Events</TabsTrigger>
+                <TabsTrigger value="nurturing">Nurturing Queue</TabsTrigger>
+                <TabsTrigger value="todos">My To-Dos</TabsTrigger>
               </TabsList>
               <TabsContent value="tasks" className="mt-4">
-                <TaskList />
+                <TaskList tasks={tasks.filter(t => !t.segment || t.segment === 'Standard Follow-up' || t.segment === 'Special Follow-up' || t.segment === 'On Hold' || t.segment === 'Needs Persuasion')} />
               </TabsContent>
               <TabsContent value="leads" className="mt-4 space-y-4">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Filter by name..."
+                    placeholder="Filter by name (including archived)..."
                     className="pl-10"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                 </div>
                 <LeadList leads={filteredLeads} />
+              </TabsContent>
+              <TabsContent value="events" className="mt-4">
+                <LeadList leads={getLeadsBySegment('Awaiting Event')} />
+              </TabsContent>
+              <TabsContent value="nurturing" className="mt-4">
+                 <LeadList leads={getLeadsBySegment('Needs Persuasion')} />
+              </TabsContent>
+               <TabsContent value="todos" className="mt-4">
+                <TaskList tasks={getActionRequiredTasks()} />
               </TabsContent>
             </Tabs>
           )}

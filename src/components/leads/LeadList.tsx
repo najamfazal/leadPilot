@@ -16,23 +16,32 @@ export default function LeadList({ leads }: LeadListProps) {
 
   if (leads.length === 0) {
     return (
-        <Card className="text-center py-12">
-            <CardHeader>
-                <div className="mx-auto bg-secondary rounded-full p-3 w-fit">
-                    <Users className="h-8 w-8 text-muted-foreground" />
+        <Card className="text-center py-8">
+            <CardHeader className='p-4'>
+                <div className="mx-auto bg-secondary rounded-full p-2.5 w-fit">
+                    <Users className="h-6 w-6 text-muted-foreground" />
                 </div>
-                <CardTitle className="mt-4">No Leads Found</CardTitle>
+                <CardTitle className="mt-3 text-lg">No Leads Found</CardTitle>
             </CardHeader>
-            <CardContent>
-                <p className="text-muted-foreground">No leads match your search, or you haven't added any yet.</p>
+            <CardContent className='p-4 pt-0'>
+                <p className="text-muted-foreground text-sm">No leads match your criteria.</p>
             </CardContent>
         </Card>
     )
   }
 
+  const sortedLeads = [...leads].sort((a, b) => {
+    if (a.createdAt && b.createdAt) {
+      const dateA = a.createdAt instanceof Date ? a.createdAt.getTime() : a.createdAt.toMillis();
+      const dateB = b.createdAt instanceof Date ? b.createdAt.getTime() : b.createdAt.toMillis();
+      return dateB - dateA;
+    }
+    return 0;
+  });
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {leads.map(lead => {
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+      {sortedLeads.map(lead => {
         const lastInteraction = interactions
           .filter(i => i.leadId === lead.id)
           .sort((a, b) => (b.date as Date).getTime() - (a.date as Date).getTime())[0];

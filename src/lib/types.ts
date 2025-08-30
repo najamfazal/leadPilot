@@ -1,5 +1,19 @@
 import { Timestamp } from 'firebase/firestore';
 
+export const LEAD_STATUSES = ['Active', 'Archived'] as const;
+export type LeadStatus = (typeof LEAD_STATUSES)[number];
+
+export const LEAD_SEGMENTS = [
+    'Standard Follow-up',
+    'Awaiting Event',
+    'Action Required',
+    'On Hold',
+    'Needs Persuasion',
+    'Special Follow-up'
+] as const;
+export type LeadSegment = (typeof LEAD_SEGMENTS)[number];
+
+
 export type Lead = {
   id: string;
   name: string;
@@ -7,7 +21,12 @@ export type Lead = {
   course: string;
   score: number;
   createdAt: Date | Timestamp;
+  status: LeadStatus;
+  segment: LeadSegment;
 };
+
+export const BLOCKER_TYPE_OPTIONS = ['Circumstantial Blocker', 'Decisional Blocker'] as const;
+export type BlockerType = (typeof BLOCKER_TYPE_OPTIONS)[number];
 
 export type Interaction = {
   id: string;
@@ -20,7 +39,15 @@ export type Interaction = {
   interactionScore: number;
   previousScore: number;
   newScore: number;
+  specialFollowUpDate?: Date;
+  preWorkRequired?: boolean;
+  preWorkDescription?: string;
+  blockerType?: BlockerType;
 };
+
+export interface InteractionFormData extends Omit<Interaction, 'id' | 'leadId' | 'date' | 'interactionScore' | 'previousScore' | 'newScore'> {
+    // all fields are optional in the form, but will be processed in context
+}
 
 export type Task = {
   id: string;
@@ -28,6 +55,7 @@ export type Task = {
   description: string;
   dueDate: Date | Timestamp;
   completed: boolean;
+  segment: LeadSegment;
 };
 
 export type Responsiveness = 'hot' | 'warm' | 'cold';
