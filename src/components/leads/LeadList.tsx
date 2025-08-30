@@ -5,9 +5,14 @@ import { LeadsContext } from '@/context/LeadsContext';
 import LeadListItem from './LeadListItem';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Users } from 'lucide-react';
+import { Lead } from '@/lib/types';
 
-export default function LeadList() {
-  const { leads } = useContext(LeadsContext);
+interface LeadListProps {
+  leads: Lead[];
+}
+
+export default function LeadList({ leads }: LeadListProps) {
+  const { interactions } = useContext(LeadsContext);
 
   if (leads.length === 0) {
     return (
@@ -16,10 +21,10 @@ export default function LeadList() {
                 <div className="mx-auto bg-secondary rounded-full p-3 w-fit">
                     <Users className="h-8 w-8 text-muted-foreground" />
                 </div>
-                <CardTitle className="mt-4">No Leads Yet</CardTitle>
+                <CardTitle className="mt-4">No Leads Found</CardTitle>
             </CardHeader>
             <CardContent>
-                <p className="text-muted-foreground">Click "Add New Lead" to start building your pipeline.</p>
+                <p className="text-muted-foreground">No leads match your search, or you haven't added any yet.</p>
             </CardContent>
         </Card>
     )
@@ -27,9 +32,12 @@ export default function LeadList() {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {leads.map(lead => (
-        <LeadListItem key={lead.id} lead={lead} />
-      ))}
+      {leads.map(lead => {
+        const lastInteraction = interactions
+          .filter(i => i.leadId === lead.id)
+          .sort((a, b) => b.date.getTime() - a.date.getTime())[0];
+        return <LeadListItem key={lead.id} lead={lead} lastInteraction={lastInteraction} />
+      })}
     </div>
   );
 }

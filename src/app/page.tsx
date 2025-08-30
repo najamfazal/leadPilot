@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useContext, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -9,13 +9,27 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, Search } from 'lucide-react';
 import AddLeadForm from '@/components/leads/AddLeadForm';
 import LeadList from '@/components/leads/LeadList';
 import Logo from '@/components/Logo';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import TaskList from '@/components/tasks/TaskList';
+import { Input } from '@/components/ui/input';
+import { LeadsContext } from '@/context/LeadsContext';
 
 export default function Home() {
   const [isAddLeadOpen, setIsAddLeadOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const { leads } = useContext(LeadsContext);
+
+  const filteredLeads = useMemo(() => {
+    if (!searchQuery) return leads;
+    return leads.filter(lead =>
+      lead.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [leads, searchQuery]);
+
 
   return (
     <div className="flex flex-col h-screen bg-background">
@@ -46,7 +60,27 @@ export default function Home() {
       </header>
       <main className="flex-1 overflow-y-auto">
         <div className="container mx-auto p-4 md:p-6">
-          <LeadList />
+          <Tabs defaultValue="tasks" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="tasks">Tasks</TabsTrigger>
+              <TabsTrigger value="leads">Leads</TabsTrigger>
+            </TabsList>
+            <TabsContent value="tasks" className="mt-4">
+              <TaskList />
+            </TabsContent>
+            <TabsContent value="leads" className="mt-4 space-y-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Filter by name..."
+                  className="pl-10"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <LeadList leads={filteredLeads} />
+            </TabsContent>
+          </Tabs>
         </div>
       </main>
     </div>

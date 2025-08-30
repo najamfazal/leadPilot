@@ -20,6 +20,17 @@ export type Interaction = {
   newScore: number;
 };
 
+export type Task = {
+  id: string;
+  leadId: string;
+  description: string;
+  dueDate: Date;
+  completed: boolean;
+};
+
+export type Responsiveness = 'hot' | 'warm' | 'cold';
+
+
 export const LEAD_TRAITS = [
   'Haggling',
   'Price Sensitive',
@@ -30,6 +41,6 @@ export const LEAD_TRAITS = [
 
 export type LeadTrait = (typeof LEAD_TRAITS)[number];
 
-export const LEAD_INTENT_OPTIONS: Interaction['intent'][] = ['High', 'Medium', 'Low'];
-export const LEAD_INTEREST_OPTIONS: Interaction['interest'][] = ['High', 'Medium', 'Low'];
-export const ACTION_COMMITTED_OPTIONS: Interaction['action'][] = ['None', 'Demo Scheduled', 'Visit Scheduled', 'Payment Link Sent'];
+export const LEAD_INTENT_OPTIONS: readonly Interaction['intent'][] = ['High', 'Medium', 'Low'];
+export const LEAD_INTEREST_OPTIONS: readonly Interaction['interest'][] = ['High', 'Medium', 'Low'];
+export const ACTION_COMMITTED_OPTIONS: readonly Interaction['action'][] = ['None', 'Demo Scheduled', 'Visit Scheduled', 'Payment Link Sent'];
