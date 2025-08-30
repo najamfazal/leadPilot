@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { ArrowRight, MessageSquare, History } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
+import { cn } from '@/lib/utils';
 
 type InteractionHistoryProps = {
   interactions: Interaction[];

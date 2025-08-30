@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Lead, Interaction } from '@/lib/types';
 import ScoreBadge from './ScoreBadge';
-import { ArrowRight, BookOpen, Calendar, Archive, Tool } from 'lucide-react';
+import { ArrowRight, BookOpen, Calendar, Archive, Wrench } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { differenceInHours } from 'date-fns';
 import { Badge } from '../ui/badge';
@@ -30,7 +30,7 @@ export default function LeadListItem({ lead, lastInteraction }: LeadListItemProp
       case 'Awaiting Event':
         return <Calendar className="h-4 w-4 text-primary" />;
       case 'Action Required':
-        return <Tool className="h-4 w-4 text-destructive" />;
+        return <Wrench className="h-4 w-4 text-destructive" />;
       default:
         return null;
     }

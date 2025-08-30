@@ -3,7 +3,7 @@
 import { useContext, useMemo } from 'react';
 import { LeadsContext } from '@/context/LeadsContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ClipboardCheck, User, Loader2, Calendar, Tool, AlertTriangle, Circle } from 'lucide-react';
+import { ClipboardCheck, User, Loader2, Calendar, Wrench, AlertTriangle, Circle } from 'lucide-react';
 import { formatDistanceToNow, isToday, isPast, format } from 'date-fns';
 import { Badge } from '../ui/badge';
 import ScoreBadge from '../leads/ScoreBadge';
@@ -108,7 +108,7 @@ export default function TaskList({ tasks: initialTasks }: TaskListProps) {
                 const segmentIcon = () => {
                     switch (task?.segment) {
                         case 'Awaiting Event': return <Calendar className="h-4 w-4 text-primary" />;
-                        case 'Action Required': return <Tool className="h-4 w-4 text-destructive" />;
+                        case 'Action Required': return <Wrench className="h-4 w-4 text-destructive" />;
                         case 'On Hold': return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
                         case 'Needs Persuasion': return <AlertTriangle className="h-4 w-4 text-orange-500" />;
                         default: return null;
