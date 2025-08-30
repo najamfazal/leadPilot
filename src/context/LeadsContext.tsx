@@ -1,13 +1,11 @@
 'use client';
 
 import React, { createContext, useState, useCallback, ReactNode, useMemo, useEffect } from 'react';
-import { Lead, Interaction, LeadTrait, Task, Responsiveness, LeadSegment, BlockerType, InteractionFormData } from '@/lib/types';
-import { calculateLeadScore } from '@/ai/flows/automatic-scoring-algorithm';
+import { Lead, Interaction, Task, Responsiveness, LeadSegment, InteractionFormData, LeadInterest, LeadIntent, Engagement, OutcomeType } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { add, differenceInHours } from 'date-fns';
+import { add, isPast } from 'date-fns';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, getDocs, query, where, Timestamp, orderBy, doc, updateDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
-
 
 interface LeadsContextType {
   leads: Lead[];
@@ -41,9 +39,24 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const leadsQuery = query(collection(db, "leads"), orderBy("createdAt", "desc"));
+      const leadsQuery = query(collection(db, "leads"));
       const leadsSnapshot = await getDocs(leadsQuery);
-      const leadsData = leadsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: (doc.data().createdAt as Timestamp)?.toDate() })) as Lead[];
+      const leadsData = leadsSnapshot.docs.map(doc => {
+          const data = doc.data();
+          return { 
+              id: doc.id, 
+              ...data, 
+              createdAt: (data.createdAt as Timestamp)?.toDate(),
+              lastInteractionAt: (data.lastInteractionAt as Timestamp)?.toDate()
+          } as Lead;
+      });
+
+      // Sort leads by last interaction date
+      leadsData.sort((a, b) => {
+        const dateA = a.lastInteractionAt ? (a.lastInteractionAt as Date).getTime() : 0;
+        const dateB = b.lastInteractionAt ? (b.lastInteractionAt as Date).getTime() : 0;
+        return dateB - dateA;
+      });
       setLeads(leadsData);
 
       if (leadsData.length > 0) {
@@ -80,16 +93,14 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
   }, [fetchData]);
 
   const getLeadResponsiveness = useCallback((leadId: string): Responsiveness => {
-    const lastInteraction = interactions
-        .filter(i => i.leadId === leadId)
-        .sort((a,b) => (b.date as Date).getTime() - (a.date as Date).getTime())[0];
-    if (!lastInteraction) return 'cold';
+    const lead = leads.find(l => l.id === leadId);
+    if (!lead || !lead.lastInteractionAt) return 'cold';
 
-    const hours = differenceInHours(new Date(), lastInteraction.date as Date);
+    const hours = (new Date().getTime() - (lead.lastInteractionAt as Date).getTime()) / (1000 * 60 * 60);
     if (hours < 24) return 'hot';
     if (hours < 72) return 'warm';
     return 'cold';
-  }, [interactions]);
+  }, [leads]);
   
   const completeTask = useCallback(async (taskId: string, leadId: string, isDay7FollowUp: boolean) => {
     const batch = writeBatch(db);
@@ -135,8 +146,9 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         ...leadData,
         score: 50,
         createdAt: serverTimestamp(),
-        status: 'Active',
-        segment: 'Standard Follow-up'
+        status: 'Active' as const,
+        segment: 'Standard Follow-up' as const,
+        lastInteractionAt: serverTimestamp(),
       };
       const docRef = await addDoc(collection(db, "leads"), newLeadData);
       
@@ -144,12 +156,13 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
           ...newLeadData, 
           id: docRef.id, 
           createdAt: new Date(),
+          lastInteractionAt: new Date()
       };
       
       setLeads(prevLeads => [newLeadForState, ...prevLeads]);
       toast({
           title: 'Lead Added Successfully!',
-          description: `${newLeadForState.name} has been added to your pipeline.`,
+          description: `${newLeadData.name} has been added to your pipeline.`,
       });
     } catch (error) {
        console.error("Error adding lead:", error);
@@ -175,12 +188,21 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
 
     if (nextIndex < sequence.length) {
         const nextDay = sequence[nextIndex];
-        const daysToAdd = nextDay - (lastFollowUpDay || 0);
-        return { day: nextDay, date: add(new Date(), { days: daysToAdd }) };
+        return { day: nextDay, date: add(new Date(), { days: nextDay }) };
     }
     return { day: 7, date: add(new Date(), { days: 7 }) };
   }
 
+  const calculateInteractionScore = (interest: LeadInterest, intent: LeadIntent, engagement: Engagement) => {
+    let score = 0;
+    const interestScores = { 'Love': 20, 'High': 10, 'Unsure': -5, 'Low': -15, 'Hate': -30 };
+    const intentScores = { 'High': 25, 'Neutral': 0, 'Low': -20 };
+    const engagementScores = { 'Positive': 10, 'Neutral': -5, 'Negative': -15 };
+    score += interestScores[interest] || 0;
+    score += intentScores[intent] || 0;
+    score += engagementScores[engagement] || 0;
+    return score;
+  }
 
   const addInteraction = useCallback(async (leadId: string, interactionData: InteractionFormData) => {
     const lead = leads.find(l => l.id === leadId);
@@ -188,15 +210,9 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
 
     setIsLoading(true);
     try {
-      const scoringResult = await calculateLeadScore({
-        currentLeadScore: lead.score,
-        leadIntent: interactionData.intent,
-        leadInterest: interactionData.interest,
-        actionCommitted: interactionData.action,
-        leadTraits: interactionData.traits,
-      });
+      const interactionScore = calculateInteractionScore(interactionData.interest, interactionData.intent, interactionData.engagement);
+      const updatedLeadScore = Math.max(0, Math.min(100, lead.score + interactionScore));
       
-      const { updatedLeadScore, interactionScore } = scoringResult;
       const batch = writeBatch(db);
 
       // 1. Create New Interaction
@@ -212,53 +228,64 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       batch.set(interactionRef, newInteractionData);
       
       // 2. Determine New Segment and Task
-      let newSegment: LeadSegment = 'Standard Follow-up';
-      let newTaskData: Omit<Task, 'id' | 'completed'>;
+      let newSegment: LeadSegment = lead.segment;
+      let newTaskData: Omit<Task, 'id' | 'completed'> | null = null;
+      const outcome = interactionData.outcome;
 
-      if (interactionData.action === 'Demo Scheduled' || interactionData.action === 'Visit Scheduled') {
-          newSegment = 'Awaiting Event';
-          newTaskData = { leadId, description: `🗓️ Confirm ${interactionData.action} with ${lead.name}`, dueDate: add(new Date(), {days: -1}), segment: newSegment };
-      } else if (interactionData.preWorkRequired && interactionData.preWorkDescription) {
-          newSegment = 'Action Required';
-          newTaskData = { leadId, description: `🛠️ ${interactionData.preWorkDescription}`, dueDate: new Date(), segment: newSegment };
-      } else if (interactionData.blockerType === 'Circumstantial Blocker') {
-          newSegment = 'On Hold';
-          newTaskData = { leadId, description: `Check-in with ${lead.name}`, dueDate: add(new Date(), { days: 30 }), segment: newSegment };
-      } else if (interactionData.blockerType === 'Decisional Blocker') {
-          newSegment = 'Needs Persuasion';
-          newTaskData = { leadId, description: `Nurture ${lead.name}: Send value content`, dueDate: add(new Date(), { days: 2 }), segment: newSegment };
-      } else if (interactionData.specialFollowUpDate) {
-          newSegment = 'Special Follow-up';
-          newTaskData = { leadId, description: `Special follow-up with ${lead.name}`, dueDate: interactionData.specialFollowUpDate, segment: newSegment };
+      if (outcome === 'Demo' || outcome === 'Visit') {
+        newSegment = 'Awaiting Event';
+        newTaskData = { leadId, description: `🗓️ ${outcome} with ${lead.name}`, dueDate: new Date(interactionData.outcomeDetail!), segment: newSegment };
+      } else if (outcome === 'PayLink') {
+        newSegment = 'Payment Pending';
+        newTaskData = { leadId, description: `💰 Close ${lead.name}: Follow up on payment link`, dueDate: add(new Date(), { days: 1 }), segment: newSegment };
+      } else if (outcome === 'FollowLater') {
+        newSegment = 'Standard Follow-up';
+        newTaskData = { leadId, description: `Follow up with ${lead.name}`, dueDate: new Date(interactionData.outcomeDetail!), segment: newSegment };
+      } else if (outcome === 'NeedsInfo') {
+        newSegment = 'Action Required';
+        newTaskData = { leadId, description: `🛠️ ${interactionData.outcomeDetail}`, dueDate: new Date(), segment: newSegment };
+      } else if (
+        (interactionData.interest === 'Unsure' || interactionData.interest === 'High') &&
+        (interactionData.intent === 'Neutral' || interactionData.intent === 'Low')
+      ) {
+        newSegment = 'Needs Nurturing';
+        newTaskData = { leadId, description: `Nurture ${lead.name}: Send value content`, dueDate: add(new Date(), { days: 2 }), segment: newSegment };
       } else {
-          const { day, date } = getNextFollowUpDay(leadId);
-          newSegment = 'Standard Follow-up';
-          newTaskData = { leadId, description: `Follow up with ${lead.name} (Day ${day})`, dueDate: date, segment: newSegment };
+        const { day, date } = getNextFollowUpDay(leadId);
+        newSegment = 'Standard Follow-up';
+        newTaskData = { leadId, description: `Follow up with ${lead.name} (Day ${day})`, dueDate: date, segment: newSegment };
       }
 
-      const finalTaskData = { ...newTaskData, completed: false };
-      const taskRef = doc(collection(db, "tasks"));
-      batch.set(taskRef, finalTaskData);
+      if (newTaskData) {
+        const finalTaskData = { ...newTaskData, completed: false };
+        const taskRef = doc(collection(db, "tasks"));
+        batch.set(taskRef, finalTaskData);
 
+         // Invalidate old tasks for this lead
+        const oldTasksQuery = query(collection(db, "tasks"), where("leadId", "==", leadId), where("completed", "==", false));
+        const oldTasksSnapshot = await getDocs(oldTasksQuery);
+        oldTasksSnapshot.forEach(doc => {
+            batch.update(doc.ref, { completed: true });
+        });
+      }
+      
       // 3. Update Lead
       const leadRef = doc(db, "leads", leadId);
-      batch.update(leadRef, { score: updatedLeadScore, segment: newSegment, status: 'Active' });
+      batch.update(leadRef, { 
+        score: updatedLeadScore, 
+        segment: newSegment, 
+        status: 'Active', 
+        lastInteractionAt: serverTimestamp() 
+      });
       
       await batch.commit();
 
       // 4. Update State
-      const newInteractionForState: Interaction = { ...newInteractionData, id: interactionRef.id, date: new Date() };
-      const newTaskForState: Task = { ...finalTaskData, id: taskRef.id };
-
-      setLeads(prevLeads =>
-        prevLeads.map(l => (l.id === leadId ? { ...l, score: updatedLeadScore, segment: newSegment, status: 'Active' } : l))
-      );
-      setInteractions(prevInteractions => [newInteractionForState, ...prevInteractions]);
-      setTasks(prevTasks => [...prevTasks.filter(t => t.leadId !== leadId), newTaskForState]); // remove old tasks for this lead and add new one.
+      await fetchData(); // Refetch all data to ensure consistency
 
       toast({
         title: "Interaction Logged!",
-        description: `Lead score for ${lead.name} is now ${updatedLeadScore}. New task created.`,
+        description: `Lead score for ${lead.name} is now ${updatedLeadScore}.`,
       });
 
     } catch (error) {
@@ -271,7 +298,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     } finally {
         setIsLoading(false);
     }
-  }, [leads, toast, tasks]);
+  }, [leads, toast, tasks, fetchData]);
 
   const contextValue = useMemo(() => ({
       leads,

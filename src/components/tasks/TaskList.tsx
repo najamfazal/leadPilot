@@ -2,9 +2,9 @@
 
 import { useContext, useMemo } from 'react';
 import { LeadsContext } from '@/context/LeadsContext';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ClipboardCheck, User, Loader2, Calendar, Wrench, AlertTriangle, Circle } from 'lucide-react';
-import { formatDistanceToNow, isToday, isPast, format } from 'date-fns';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ClipboardCheck, User, Loader2, Calendar, Wrench, AlertTriangle, Circle, Wallet } from 'lucide-react';
+import { formatDistanceToNow, isToday, isPast } from 'date-fns';
 import { Badge } from '../ui/badge';
 import ScoreBadge from '../leads/ScoreBadge';
 import Link from 'next/link';
@@ -15,9 +15,10 @@ import { Button } from '../ui/button';
 
 interface TaskListProps {
     tasks: Task[];
+    title: string;
 }
 
-export default function TaskList({ tasks: initialTasks }: TaskListProps) {
+export default function TaskList({ tasks: initialTasks, title }: TaskListProps) {
     const { leads, getLeadResponsiveness, isLoading, completeTask } = useContext(LeadsContext);
 
     const calculatedTasks = useMemo(() => {
@@ -56,7 +57,11 @@ export default function TaskList({ tasks: initialTasks }: TaskListProps) {
     }, [initialTasks, leads, getLeadResponsiveness]);
 
     const sortedTasks = useMemo(() => {
-        return calculatedTasks.sort((a, b) => b!.priorityScore - a!.priorityScore);
+        return calculatedTasks.sort((a, b) => {
+            const aDate = a!.dueDate instanceof Date ? a!.dueDate.getTime() : a!.dueDate.toMillis();
+            const bDate = b!.dueDate instanceof Date ? b!.dueDate.getTime() : b!.dueDate.toMillis();
+            return aDate - bDate;
+        });
     }, [calculatedTasks]);
 
     const getPriorityIndicator = (score: number) => {
@@ -96,7 +101,7 @@ export default function TaskList({ tasks: initialTasks }: TaskListProps) {
                     <CardTitle className="mt-3 text-lg">All Tasks Completed!</CardTitle>
                 </CardHeader>
                 <CardContent className='p-4 pt-0'>
-                    <p className="text-muted-foreground text-sm">Log a new interaction to generate the next task.</p>
+                    <p className="text-muted-foreground text-sm">No tasks in this list.</p>
                 </CardContent>
             </Card>
         )
@@ -110,8 +115,7 @@ export default function TaskList({ tasks: initialTasks }: TaskListProps) {
                     switch (task?.segment) {
                         case 'Awaiting Event': return <Calendar className="h-4 w-4 text-primary" />;
                         case 'Action Required': return <Wrench className="h-4 w-4 text-destructive" />;
-                        case 'On Hold': return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
-                        case 'Needs Persuasion': return <AlertTriangle className="h-4 w-4 text-orange-500" />;
+                        case 'Needs Nurturing': return <Wallet className="h-4 w-4 text-purple-500" />;
                         default: return null;
                     }
                 }

@@ -59,17 +59,10 @@ export default function InteractionHistory({ interactions }: InteractionHistoryP
             </div>
             <div className="space-y-1.5">
                 <div className="flex flex-wrap gap-1.5">
-                    <Badge variant="outline" className="text-xs">Intent: {interaction.intent}</Badge>
                     <Badge variant="outline" className="text-xs">Interest: {interaction.interest}</Badge>
-                    <Badge variant="outline" className="text-xs">Action: {interaction.action}</Badge>
+                    <Badge variant="outline" className="text-xs">Intent: {interaction.intent}</Badge>
+                    <Badge variant="outline" className="text-xs">Engagement: {interaction.engagement}</Badge>
                 </div>
-                {interaction.traits.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                        {interaction.traits.map(trait => (
-                            <Badge key={trait} variant="secondary" className="text-xs">{trait}</Badge>
-                        ))}
-                    </div>
-                )}
             </div>
           </div>
         ))}

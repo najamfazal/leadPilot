@@ -7,9 +7,8 @@ export const LEAD_SEGMENTS = [
     'Standard Follow-up',
     'Awaiting Event',
     'Action Required',
-    'On Hold',
-    'Needs Persuasion',
-    'Special Follow-up'
+    'Needs Nurturing',
+    'Payment Pending'
 ] as const;
 export type LeadSegment = (typeof LEAD_SEGMENTS)[number];
 
@@ -23,26 +22,33 @@ export type Lead = {
   createdAt: Date | Timestamp;
   status: LeadStatus;
   segment: LeadSegment;
+  lastInteractionAt?: Date | Timestamp;
 };
 
-export const BLOCKER_TYPE_OPTIONS = ['Circumstantial Blocker', 'Decisional Blocker'] as const;
-export type BlockerType = (typeof BLOCKER_TYPE_OPTIONS)[number];
+export const LEAD_INTEREST_OPTIONS = ['Love', 'High', 'Unsure', 'Low', 'Hate'] as const;
+export type LeadInterest = typeof LEAD_INTEREST_OPTIONS[number];
+
+export const LEAD_INTENT_OPTIONS = ['High', 'Neutral', 'Low'] as const;
+export type LeadIntent = typeof LEAD_INTENT_OPTIONS[number];
+
+export const ENGAGEMENT_OPTIONS = ['Positive', 'Neutral', 'Negative'] as const;
+export type Engagement = typeof ENGAGEMENT_OPTIONS[number];
+
+export const OUTCOME_TYPES = ['Demo', 'Visit', 'PayLink', 'FollowLater', 'NeedsInfo'] as const;
+export type OutcomeType = typeof OUTCOME_TYPES[number];
 
 export type Interaction = {
   id: string;
   leadId: string;
   date: Date | Timestamp;
-  intent: 'High' | 'Medium' | 'Low';
-  interest: 'High' | 'Medium' | 'Low';
-  action: 'None' | 'Demo Scheduled' | 'Visit Scheduled' | 'Payment Link Sent';
-  traits: LeadTrait[];
+  interest: LeadInterest;
+  intent: LeadIntent;
+  engagement: Engagement;
+  outcome?: OutcomeType;
+  outcomeDetail?: string; // For date from FollowLater or text from NeedsInfo
   interactionScore: number;
   previousScore: number;
   newScore: number;
-  specialFollowUpDate?: Date;
-  preWorkRequired?: boolean;
-  preWorkDescription?: string;
-  blockerType?: BlockerType;
 };
 
 export interface InteractionFormData extends Omit<Interaction, 'id' | 'leadId' | 'date' | 'interactionScore' | 'previousScore' | 'newScore'> {
@@ -59,18 +65,3 @@ export type Task = {
 };
 
 export type Responsiveness = 'hot' | 'warm' | 'cold';
-
-
-export const LEAD_TRAITS = [
-  'Haggling',
-  'Price Sensitive',
-  'Time Constraint',
-  'Pays for Value',
-  'Browser-not-Buyer',
-] as const;
-
-export type LeadTrait = (typeof LEAD_TRAITS)[number];
-
-export const LEAD_INTENT_OPTIONS: readonly Interaction['intent'][] = ['High', 'Medium', 'Low'];
-export const LEAD_INTEREST_OPTIONS: readonly Interaction['interest'][] = ['High', 'Medium', 'Low'];
-export const ACTION_COMMITTED_OPTIONS: readonly Interaction['action'][] = ['None', 'Demo Scheduled', 'Visit Scheduled', 'Payment Link Sent'];
