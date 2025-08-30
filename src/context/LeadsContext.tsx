@@ -16,6 +16,7 @@ interface LeadsContextType {
   isLoading: boolean;
   getLeadResponsiveness: (leadId: string) => Responsiveness;
   completeTask: (taskId: string, leadId: string, isDay7FollowUp: boolean) => Promise<void>;
+  manualSeedDatabase: () => Promise<void>;
 }
 
 export const LeadsContext = createContext<LeadsContextType>({
@@ -27,6 +28,7 @@ export const LeadsContext = createContext<LeadsContextType>({
   isLoading: true,
   getLeadResponsiveness: () => 'cold',
   completeTask: async () => {},
+  manualSeedDatabase: async () => {},
 });
 
 const seedDatabase = async () => {
@@ -88,19 +90,12 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  const fetchData = useCallback(async (force = false) => {
-    setIsLoading(true);
+  const fetchData = useCallback(async (forceRefresh = false) => {
+    if (!forceRefresh) {
+        setIsLoading(true);
+    }
     try {
         const leadsColl = collection(db, "leads");
-
-        // Check if DB is empty, if so, seed it.
-        if (!force) {
-            const countSnapshot = await getCountFromServer(query(leadsColl, where('status', '==', 'Active')));
-            if (countSnapshot.data().count === 0) {
-                await seedDatabase();
-            }
-        }
-
         const leadsQuery = query(leadsColl);
         const leadsSnapshot = await getDocs(leadsQuery);
         const leadsData = leadsSnapshot.docs.map(doc => {
@@ -151,6 +146,27 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const manualSeedDatabase = useCallback(async () => {
+    setIsLoading(true);
+    try {
+        await seedDatabase();
+        await fetchData(true); // Force a refresh after seeding
+        toast({
+            title: "Success!",
+            description: "Dummy data has been added to your CRM.",
+        });
+    } catch (error) {
+        console.error("Error seeding database:", error);
+        toast({
+            variant: "destructive",
+            title: "Seeding Failed",
+            description: "Could not add dummy data.",
+        });
+    } finally {
+        setIsLoading(false);
+    }
+  }, [fetchData, toast]);
 
   const getLeadResponsiveness = useCallback((leadId: string): Responsiveness => {
     const lead = leads.find(l => l.id === leadId);
@@ -364,7 +380,8 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       isLoading,
       getLeadResponsiveness,
       completeTask,
-  }), [leads, interactions, tasks, addLead, addInteraction, isLoading, getLeadResponsiveness, completeTask]);
+      manualSeedDatabase,
+  }), [leads, interactions, tasks, addLead, addInteraction, isLoading, getLeadResponsiveness, completeTask, manualSeedDatabase]);
 
   return (
     <LeadsContext.Provider value={contextValue}>

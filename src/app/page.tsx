@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { PlusCircle, Search, Loader2, Eye, EyeOff, CalendarIcon } from 'lucide-react';
+import { PlusCircle, Search, Loader2, Eye, EyeOff, CalendarIcon, Plus } from 'lucide-react';
 import AddLeadForm from '@/components/leads/AddLeadForm';
 import LeadList from '@/components/leads/LeadList';
 import Logo from '@/components/Logo';
@@ -22,13 +22,23 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { format, isSameDay } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export default function Home() {
   const [isAddLeadOpen, setIsAddLeadOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const { leads, tasks, isLoading } = useContext(LeadsContext);
+  const { leads, tasks, isLoading, manualSeedDatabase } = useContext(LeadsContext);
   const [filterTasksByDate, setFilterTasksByDate] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const isMobile = useIsMobile();
+  const [isSeeding, setIsSeeding] = useState(false);
+
+
+  const handleSeed = async () => {
+    setIsSeeding(true);
+    await manualSeedDatabase();
+    setIsSeeding(false);
+  }
 
   const filteredLeads = useMemo(() => {
     if (!searchQuery) return leads.filter(lead => lead.status !== 'Archived');
@@ -64,23 +74,30 @@ export default function Home() {
             <Logo className="h-8 w-8 text-primary" />
             <h1 className="text-xl font-bold text-foreground">ScoreCard CRM</h1>
           </div>
-          <Dialog open={isAddLeadOpen} onOpenChange={setIsAddLeadOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Add New Lead
+          <div className="flex items-center gap-2">
+            {!isLoading && leads.length === 0 && (
+              <Button onClick={handleSeed} variant="outline" disabled={isSeeding}>
+                {isSeeding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Seed Data
               </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Add New Lead</DialogTitle>
-                <DialogDescription>
-                  Enter the details of the new lead. They will start with a score of 50.
-                </DialogDescription>
-              </DialogHeader>
-              <AddLeadForm setOpen={setIsAddLeadOpen} />
-            </DialogContent>
-          </Dialog>
+            )}
+            <Dialog open={isAddLeadOpen} onOpenChange={setIsAddLeadOpen}>
+              <DialogTrigger asChild>
+                 <Button size={isMobile ? "icon" : "default"}>
+                  {isMobile ? <Plus /> : <><PlusCircle className="mr-2 h-4 w-4" /> Add New Lead</>}
+                 </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Add New Lead</DialogTitle>
+                  <DialogDescription>
+                    Enter the details of the new lead. They will start with a score of 50.
+                  </DialogDescription>
+                </DialogHeader>
+                <AddLeadForm setOpen={setIsAddLeadOpen} />
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
       </header>
       <main className="flex-1 overflow-y-auto">
