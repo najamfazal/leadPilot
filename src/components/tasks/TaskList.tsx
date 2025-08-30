@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { Timestamp } from 'firebase/firestore';
 import { Task } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { Button } from '../ui/button';
 
 interface TaskListProps {
     tasks: Task[];
