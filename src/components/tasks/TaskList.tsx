@@ -137,7 +137,7 @@ export default function TaskList({ tasks: initialTasks }: TaskListProps) {
                            </div>
                             <div className="flex items-center gap-3 text-sm">
                                 <div className="flex items-center gap-1.5">
-                                    <Circle className={cn("h-2.5 w-2.5", priority.color)} />
+                                    <Circle className={cn("h-2.5 w-2.5 rounded-full", priority.color.replace("text-", "bg-"))} />
                                     <span className={cn('hidden md:inline', priority.color)}>{priority.label}</span>
                                 </div>
                                 <Badge variant={task!.isOverdue ? 'destructive' : task!.isDueToday ? 'secondary' : 'outline'} className="text-xs w-[100px] justify-center text-center">

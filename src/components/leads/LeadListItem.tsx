@@ -39,7 +39,7 @@ export default function LeadListItem({ lead, lastInteraction }: LeadListItemProp
   return (
     <Link href={`/lead/${lead.id}`} className="block group transition-all duration-200 ease-in-out active:scale-[0.98]">
       <Card className={cn(
-        "hover:shadow-md transition-shadow duration-200",
+        "hover:shadow-lg transition-all duration-200 ease-in-out hover:border-primary/40",
         responsivenessClasses[responsiveness],
         lead.status === 'Archived' ? 'opacity-60 hover:opacity-100' : ''
       )}>
@@ -57,7 +57,7 @@ export default function LeadListItem({ lead, lastInteraction }: LeadListItemProp
           <div className="flex justify-between items-center text-muted-foreground">
             <div className="flex items-center gap-2 text-xs">
                 <BookOpen className="h-3.5 w-3.5" />
-                <span className='font-semibold text-accent'>{lead.course}</span>
+                <span className='font-semibold text-primary'>{lead.course}</span>
             </div>
             <ArrowRight className="h-4 w-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
