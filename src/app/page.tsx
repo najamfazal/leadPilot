@@ -20,7 +20,7 @@ import { LeadsContext } from '@/context/LeadsContext';
 import { LeadSegment } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { format, isSameDay, isPast, isToday } from 'date-fns';
+import { format, isSameDay, isPast, isToday, add } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Badge } from '@/components/ui/badge';
@@ -29,10 +29,11 @@ export default function Home() {
   const [isAddLeadOpen, setIsAddLeadOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const { leads, tasks, isLoading, manualSeedDatabase } = useContext(LeadsContext);
-  const [filterTasksByDate, setFilterTasksByDate] = useState(true);
+  const [filterTasksByDate, setFilterTasksByDate] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const isMobile = useIsMobile();
   const [isSeeding, setIsSeeding] = useState(false);
+  const [showOverdue, setShowOverdue] = useState(false);
 
 
   const handleSeed = async () => {
@@ -60,16 +61,26 @@ export default function Home() {
 
   const allStandardTasks = useMemo(() => getTasksBySegment(['Standard Follow-up', 'Action Required', 'Payment Pending']), [tasks]);
 
-  const overdueTasksCount = useMemo(() => {
-    return allStandardTasks.filter(task => isPast(task.dueDate as Date) && !isToday(task.dueDate as Date)).length;
+  const overdueTasks = useMemo(() => {
+    return allStandardTasks.filter(task => isPast(task.dueDate as Date) && !isToday(task.dueDate as Date));
   }, [allStandardTasks]);
+  
+  const overdueTasksCount = overdueTasks.length;
 
   const tasksForTaskTab = useMemo(() => {
-    if(filterTasksByDate && selectedDate) {
-        return allStandardTasks.filter(task => isSameDay(task.dueDate as Date, selectedDate))
+    let tasksToShow = filterTasksByDate && selectedDate 
+      ? allStandardTasks.filter(task => isSameDay(task.dueDate as Date, selectedDate))
+      : allStandardTasks.filter(task => isToday(task.dueDate as Date));
+
+    if (showOverdue) {
+        // Return overdue tasks, plus the other tasks, ensuring no duplicates
+        const otherTaskIds = new Set(tasksToShow.map(t => t.id));
+        const uniqueOverdueTasks = overdueTasks.filter(t => !otherTaskIds.has(t.id));
+        return [...uniqueOverdueTasks, ...tasksToShow];
     }
-    return allStandardTasks;
-  }, [allStandardTasks, filterTasksByDate, selectedDate]);
+    
+    return tasksToShow;
+  }, [allStandardTasks, filterTasksByDate, selectedDate, showOverdue, overdueTasks]);
 
 
   return (
@@ -132,13 +143,10 @@ export default function Home() {
                             <PopoverTrigger asChild>
                                 <Button
                                 variant={"outline"}
-                                className={cn(
-                                    "w-[200px] justify-start text-left font-normal",
-                                    !selectedDate && "text-muted-foreground"
-                                )}
+                                size="icon"
+                                className={cn(!selectedDate && "text-muted-foreground")}
                                 >
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
+                                <CalendarIcon className="h-4 w-4" />
                                 </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0">
@@ -151,8 +159,14 @@ export default function Home() {
                             </PopoverContent>
                         </Popover>
                     )}
+                    {selectedDate && <p className='text-sm font-medium'>{format(selectedDate, 'PPP')}</p>}
+
                     {overdueTasksCount > 0 && (
-                        <Badge variant="destructive" className="ml-auto">{overdueTasksCount} Overdue</Badge>
+                         <Button variant="ghost" className="ml-auto p-0 h-auto" onClick={() => setShowOverdue(!showOverdue)}>
+                             <Badge variant={showOverdue ? "default" : "destructive"} className="cursor-pointer transition-colors">
+                                {overdueTasksCount} Overdue
+                             </Badge>
+                         </Button>
                     )}
                 </div>
                 <TaskList tasks={tasksForTaskTab} title="Tasks" />

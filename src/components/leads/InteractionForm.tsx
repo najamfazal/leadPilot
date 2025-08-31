@@ -11,7 +11,7 @@ import { Lead, LEAD_INTENT_OPTIONS, LEAD_INTEREST_OPTIONS, ENGAGEMENT_OPTIONS, O
 import { CalendarIcon, Loader2, PlusCircle } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Calendar } from '../ui/calendar';
-import { format } from 'date-fns';
+import { format, add } from 'date-fns';
 import { Textarea } from '../ui/textarea';
 import { cn } from '@/lib/utils';
 import { RadioGroup } from '../ui/radio-group';
@@ -32,6 +32,7 @@ type InteractionFormProps = {
 export default function InteractionForm({ lead, setOpen }: InteractionFormProps) {
   const { addInteraction, isLoading } = useContext(LeadsContext);
   const [showOutcomes, setShowOutcomes] = useState(false);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -46,6 +47,52 @@ export default function InteractionForm({ lead, setOpen }: InteractionFormProps)
     setOpen(false);
   }
 
+  const DatePickerWithChips = ({ field, disabled }: { field: any, disabled: (date: Date) => boolean }) => {
+    
+    const setDateAndClose = (date: Date) => {
+        field.onChange(date.toISOString());
+        setIsCalendarOpen(false);
+    }
+
+    return (
+       <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+            <PopoverTrigger asChild>
+            <FormControl>
+                <Button
+                variant={"outline"}
+                className={cn(
+                    "pl-3 text-left font-normal",
+                    !field.value && "text-muted-foreground"
+                )}
+                >
+                {field.value ? (
+                    format(new Date(field.value), "PPP")
+                ) : (
+                    <span>Pick a date</span>
+                )}
+                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                </Button>
+            </FormControl>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-2 space-y-2" align="start">
+                <div className='grid grid-cols-2 gap-2'>
+                    <Button variant="outline" size="sm" onClick={() => setDateAndClose(add(new Date(), {days: 1}))}>Tomorrow</Button>
+                    <Button variant="outline" size="sm" onClick={() => setDateAndClose(add(new Date(), {days: 3}))}>In 3 days</Button>
+                    <Button variant="outline" size="sm" onClick={() => setDateAndClose(add(new Date(), {days: 7}))}>In a week</Button>
+                    <Button variant="outline" size="sm" onClick={() => setDateAndClose(add(new Date(), {months: 1}))}>In a month</Button>
+                </div>
+                <Calendar
+                    mode="single"
+                    selected={field.value ? new Date(field.value) : undefined}
+                    onSelect={(date) => date && field.onChange(date.toISOString())}
+                    disabled={disabled}
+                    initialFocus
+                />
+            </PopoverContent>
+        </Popover>
+    )
+  }
+
   const renderOutcomeDetail = () => {
     switch(outcomeValue) {
         case 'FollowLater':
@@ -56,37 +103,10 @@ export default function InteractionForm({ lead, setOpen }: InteractionFormProps)
                     render={({ field }) => (
                         <FormItem className="flex flex-col">
                         <FormLabel>Follow-up Date</FormLabel>
-                        <Popover>
-                            <PopoverTrigger asChild>
-                            <FormControl>
-                                <Button
-                                variant={"outline"}
-                                className={cn(
-                                    "pl-3 text-left font-normal",
-                                    !field.value && "text-muted-foreground"
-                                )}
-                                >
-                                {field.value ? (
-                                    format(new Date(field.value), "PPP")
-                                ) : (
-                                    <span>Pick a date</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                </Button>
-                            </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                                mode="single"
-                                selected={field.value ? new Date(field.value) : undefined}
-                                onSelect={(date) => field.onChange(date?.toISOString())}
-                                disabled={(date) =>
-                                date < new Date()
-                                }
-                                initialFocus
-                            />
-                            </PopoverContent>
-                        </Popover>
+                        <DatePickerWithChips 
+                            field={field} 
+                            disabled={(date) => date < new Date()}
+                        />
                         <FormMessage />
                         </FormItem>
                     )}
@@ -117,34 +137,10 @@ export default function InteractionForm({ lead, setOpen }: InteractionFormProps)
                     render={({ field }) => (
                         <FormItem className="flex flex-col">
                         <FormLabel>{outcomeValue} Date</FormLabel>
-                        <Popover>
-                            <PopoverTrigger asChild>
-                            <FormControl>
-                                <Button
-                                variant={"outline"}
-                                className={cn(
-                                    "pl-3 text-left font-normal",
-                                    !field.value && "text-muted-foreground"
-                                )}
-                                >
-                                {field.value ? (
-                                    format(new Date(field.value), "PPP")
-                                ) : (
-                                    <span>Pick a date</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                </Button>
-                            </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                                mode="single"
-                                selected={field.value ? new Date(field.value) : undefined}
-                                onSelect={(date) => field.onChange(date?.toISOString())}
-                                initialFocus
-                            />
-                            </PopoverContent>
-                        </Popover>
+                         <DatePickerWithChips 
+                            field={field} 
+                            disabled={(date) => date < new Date()}
+                         />
                         <FormMessage />
                         </FormItem>
                     )}
