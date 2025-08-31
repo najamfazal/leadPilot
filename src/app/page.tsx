@@ -1,5 +1,5 @@
 'use client';
-import { useState, useContext, useMemo } from 'react';
+import { useState, useContext, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -24,6 +24,14 @@ import { format, isSameDay, isPast, isToday, add, isTomorrow, isYesterday } from
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Badge } from '@/components/ui/badge';
+import {
+  Carousel,
+  CarouselApi,
+  CarouselContent,
+  CarouselItem,
+} from '@/components/ui/carousel';
+
+const TAB_VALUES = ["tasks", "leads", "nurture", "events"];
 
 export default function Home() {
   const [isAddLeadOpen, setIsAddLeadOpen] = useState(false);
@@ -34,6 +42,36 @@ export default function Home() {
   const isMobile = useIsMobile();
   const [isSeeding, setIsSeeding] = useState(false);
   const [showOverdue, setShowOverdue] = useState(false);
+  const [api, setApi] = useState<CarouselApi>();
+  const [activeTab, setActiveTab] = useState("tasks");
+
+  useEffect(() => {
+    if (!api) {
+      return;
+    }
+
+    const onSelect = () => {
+      const newTab = TAB_VALUES[api.selectedScrollSnap()];
+      setActiveTab(newTab);
+    };
+
+    api.on("select", onSelect);
+    
+    // Set initial active tab
+    onSelect();
+
+    return () => {
+      api.off("select", onSelect);
+    };
+  }, [api]);
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    const tabIndex = TAB_VALUES.indexOf(value);
+    if (api && tabIndex !== -1) {
+      api.scrollTo(tabIndex);
+    }
+  };
 
 
   const handleSeed = async () => {
@@ -123,78 +161,83 @@ export default function Home() {
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
              </div>
           ) : (
-            <Tabs defaultValue="tasks" className="w-full">
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
               <div className="overflow-x-auto">
                 <TabsList className="min-w-max w-full grid grid-cols-4">
-                    <TabsTrigger value="tasks">Tasks</TabsTrigger>
-                    <TabsTrigger value="leads">Leads</TabsTrigger>
-                    <TabsTrigger value="nurture">Nurture</TabsTrigger>
-                    <TabsTrigger value="events">Events</TabsTrigger>
+                    {TAB_VALUES.map(tab => (
+                        <TabsTrigger key={tab} value={tab}>{tab.charAt(0).toUpperCase() + tab.slice(1)}</TabsTrigger>
+                    ))}
                 </TabsList>
               </div>
-              <TabsContent value="tasks" className="mt-4">
-                <div className='flex items-center gap-2 mb-3'>
-                    <Button variant="outline" size="icon" onClick={() => setFilterTasksByDate(!filterTasksByDate)}>
-                        {filterTasksByDate ? <EyeOff /> : <Eye />}
-                    </Button>
-                    {filterTasksByDate && (
-                         <Popover>
-                            <PopoverTrigger asChild>
-                                <Button
-                                variant={"outline"}
-                                size="icon"
-                                className={cn(!selectedDate && "text-muted-foreground")}
-                                >
-                                <CalendarIcon className="h-4 w-4" />
+               <Carousel setApi={setApi} className="w-full mt-4">
+                <CarouselContent>
+                    <CarouselItem>
+                        <div className='flex items-center gap-2 mb-3'>
+                            <Button variant="outline" size="icon" onClick={() => setFilterTasksByDate(!filterTasksByDate)}>
+                                {filterTasksByDate ? <EyeOff /> : <Eye />}
+                            </Button>
+                            {filterTasksByDate && (
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                        variant={"outline"}
+                                        size="icon"
+                                        className={cn(!selectedDate && "text-muted-foreground")}
+                                        >
+                                        <CalendarIcon className="h-4 w-4" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0">
+                                        <Calendar
+                                        mode="single"
+                                        selected={selectedDate}
+                                        onSelect={setSelectedDate}
+                                        initialFocus
+                                        />
+                                    </PopoverContent>
+                                </Popover>
+                            )}
+                        
+                            {overdueTasksCount > 0 && (
+                                <Button variant="ghost" className="ml-auto p-0 h-auto" onClick={() => setShowOverdue(!showOverdue)}>
+                                    <Badge variant={showOverdue ? "default" : "destructive"} className="cursor-pointer transition-colors">
+                                        {overdueTasksCount} Overdue
+                                    </Badge>
                                 </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0">
-                                <Calendar
-                                mode="single"
-                                selected={selectedDate}
-                                onSelect={setSelectedDate}
-                                initialFocus
-                                />
-                            </PopoverContent>
-                        </Popover>
-                    )}
-                   
-                    {overdueTasksCount > 0 && (
-                         <Button variant="ghost" className="ml-auto p-0 h-auto" onClick={() => setShowOverdue(!showOverdue)}>
-                             <Badge variant={showOverdue ? "default" : "destructive"} className="cursor-pointer transition-colors">
-                                {overdueTasksCount} Overdue
-                             </Badge>
-                         </Button>
-                    )}
-                </div>
-                 <div className="space-y-4">
-                  {showOverdue && overdueTasks.length > 0 && (
-                      <TaskList tasks={overdueTasks} title="Overdue" />
-                  )}
-                  <TaskList
-                      tasks={tasksForSelectedDate}
-                      title={getContextualDateTitle(filterTasksByDate && selectedDate ? selectedDate : new Date())}
-                  />
-                </div>
-              </TabsContent>
-              <TabsContent value="leads" className="mt-4 space-y-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Filter by name (including archived)..."
-                    className="pl-10"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                </div>
-                <LeadList leads={filteredLeads} />
-              </TabsContent>
-              <TabsContent value="nurture" className="mt-4">
-                 <TaskList tasks={getTasksBySegment('Needs Nurturing')} title="Nurturing Queue"/>
-              </TabsContent>
-               <TabsContent value="events" className="mt-4">
-                <TaskList tasks={getTasksBySegment('Awaiting Event')} title="Upcoming Events"/>
-              </TabsContent>
+                            )}
+                        </div>
+                        <div className="space-y-4">
+                        {showOverdue && overdueTasks.length > 0 && (
+                            <TaskList tasks={overdueTasks} title="Overdue" />
+                        )}
+                        <TaskList
+                            tasks={tasksForSelectedDate}
+                            title={getContextualDateTitle(filterTasksByDate && selectedDate ? selectedDate : new Date())}
+                        />
+                        </div>
+                    </CarouselItem>
+                    <CarouselItem>
+                         <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Filter by name (including archived)..."
+                                className="pl-10"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                            </div>
+                        <div className="mt-4">
+                          <LeadList leads={filteredLeads} />
+                        </div>
+                    </CarouselItem>
+                    <CarouselItem>
+                         <TaskList tasks={getTasksBySegment('Needs Nurturing')} title="Nurturing Queue"/>
+                    </CarouselItem>
+                    <CarouselItem>
+                         <TaskList tasks={getTasksBySegment('Awaiting Event')} title="Upcoming Events"/>
+                    </CarouselItem>
+                </CarouselContent>
+            </Carousel>
             </Tabs>
           )}
         </div>
