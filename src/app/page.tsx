@@ -20,15 +20,16 @@ import { LeadsContext } from '@/context/LeadsContext';
 import { LeadSegment } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { format, isSameDay } from 'date-fns';
+import { format, isSameDay, isPast, isToday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { Badge } from '@/components/ui/badge';
 
 export default function Home() {
   const [isAddLeadOpen, setIsAddLeadOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const { leads, tasks, isLoading, manualSeedDatabase } = useContext(LeadsContext);
-  const [filterTasksByDate, setFilterTasksByDate] = useState(false);
+  const [filterTasksByDate, setFilterTasksByDate] = useState(true);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const isMobile = useIsMobile();
   const [isSeeding, setIsSeeding] = useState(false);
@@ -57,13 +58,18 @@ export default function Home() {
       return tasks.filter(task => segments.includes(task.segment));
   }
 
+  const allStandardTasks = useMemo(() => getTasksBySegment(['Standard Follow-up', 'Action Required', 'Payment Pending']), [tasks]);
+
+  const overdueTasksCount = useMemo(() => {
+    return allStandardTasks.filter(task => isPast(task.dueDate as Date) && !isToday(task.dueDate as Date)).length;
+  }, [allStandardTasks]);
+
   const tasksForTaskTab = useMemo(() => {
-    const standardTasks = getTasksBySegment(['Standard Follow-up', 'Action Required', 'Payment Pending']);
     if(filterTasksByDate && selectedDate) {
-        return standardTasks.filter(task => isSameDay(task.dueDate as Date, selectedDate))
+        return allStandardTasks.filter(task => isSameDay(task.dueDate as Date, selectedDate))
     }
-    return standardTasks;
-  }, [tasks, filterTasksByDate, selectedDate]);
+    return allStandardTasks;
+  }, [allStandardTasks, filterTasksByDate, selectedDate]);
 
 
   return (
@@ -144,6 +150,9 @@ export default function Home() {
                                 />
                             </PopoverContent>
                         </Popover>
+                    )}
+                    {overdueTasksCount > 0 && (
+                        <Badge variant="destructive" className="ml-auto">{overdueTasksCount} Overdue</Badge>
                     )}
                 </div>
                 <TaskList tasks={tasksForTaskTab} title="Tasks" />
