@@ -61,7 +61,7 @@ export default function InteractionForm({ lead, setOpen }: InteractionFormProps)
                 <Button
                 variant={"outline"}
                 className={cn(
-                    "pl-3 text-left font-normal",
+                    "pl-3 text-left font-normal w-full justify-start",
                     !field.value && "text-muted-foreground"
                 )}
                 >

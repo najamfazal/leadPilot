@@ -67,20 +67,11 @@ export default function Home() {
   
   const overdueTasksCount = overdueTasks.length;
 
-  const tasksForTaskTab = useMemo(() => {
-    let tasksToShow = filterTasksByDate && selectedDate 
+  const tasksForSelectedDate = useMemo(() => {
+    return filterTasksByDate && selectedDate 
       ? allStandardTasks.filter(task => isSameDay(task.dueDate as Date, selectedDate))
       : allStandardTasks.filter(task => isToday(task.dueDate as Date));
-
-    if (showOverdue) {
-        // Return overdue tasks, plus the other tasks, ensuring no duplicates
-        const otherTaskIds = new Set(tasksToShow.map(t => t.id));
-        const uniqueOverdueTasks = overdueTasks.filter(t => !otherTaskIds.has(t.id));
-        return [...uniqueOverdueTasks, ...tasksToShow];
-    }
-    
-    return tasksToShow;
-  }, [allStandardTasks, filterTasksByDate, selectedDate, showOverdue, overdueTasks]);
+  }, [allStandardTasks, filterTasksByDate, selectedDate]);
 
 
   return (
@@ -126,7 +117,7 @@ export default function Home() {
           ) : (
             <Tabs defaultValue="tasks" className="w-full">
               <div className="overflow-x-auto">
-                <TabsList className="min-w-max">
+                <TabsList className="min-w-max w-full grid grid-cols-4">
                     <TabsTrigger value="tasks">Tasks</TabsTrigger>
                     <TabsTrigger value="leads">Leads</TabsTrigger>
                     <TabsTrigger value="nurture">Nurture</TabsTrigger>
@@ -159,8 +150,7 @@ export default function Home() {
                             </PopoverContent>
                         </Popover>
                     )}
-                    {selectedDate && <p className='text-sm font-medium'>{format(selectedDate, 'PPP')}</p>}
-
+                   
                     {overdueTasksCount > 0 && (
                          <Button variant="ghost" className="ml-auto p-0 h-auto" onClick={() => setShowOverdue(!showOverdue)}>
                              <Badge variant={showOverdue ? "default" : "destructive"} className="cursor-pointer transition-colors">
@@ -169,7 +159,15 @@ export default function Home() {
                          </Button>
                     )}
                 </div>
-                <TaskList tasks={tasksForTaskTab} title="Tasks" />
+                 <div className="space-y-4">
+                  {showOverdue && overdueTasks.length > 0 && (
+                      <TaskList tasks={overdueTasks} title="Overdue" />
+                  )}
+                  <TaskList
+                      tasks={tasksForSelectedDate}
+                      title={format(filterTasksByDate && selectedDate ? selectedDate : new Date(), "'Tasks for' PPP")}
+                  />
+                </div>
               </TabsContent>
               <TabsContent value="leads" className="mt-4 space-y-4">
                 <div className="relative">
