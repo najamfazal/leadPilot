@@ -53,19 +53,19 @@ export default function LeadListItem({ lead }: LeadListItemProps) {
             <ScoreBadge score={lead.score} />
           </div>
         </CardHeader>
-        <CardContent className="flex flex-col gap-2 p-3 pt-0">
-          <div className="flex justify-between items-center text-muted-foreground">
-            <div className="flex items-center gap-2 text-xs">
-                <BookOpen className="h-3.5 w-3.5" />
-                <span className='font-semibold text-primary/80'>{lead.course}</span>
-            </div>
+        <CardContent className="flex items-center justify-between gap-2 p-3 pt-0">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <BookOpen className="h-3.5 w-3.5" />
+              <span className='font-semibold text-primary/80'>{lead.course}</span>
+          </div>
+          <div className='flex items-center gap-2'>
+            {lead.lastInteractionAt && (
+              <div className="text-xs text-muted-foreground">
+                  {formatDistanceToNowStrict(new Date(lead.lastInteractionAt as Date), { addSuffix: true })}
+              </div>
+            )}
             <ArrowRight className="h-4 w-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
-          {lead.lastInteractionAt && (
-             <div className="flex items-center text-xs text-muted-foreground">
-                 Last activity: {formatDistanceToNowStrict(new Date(lead.lastInteractionAt as Date), { addSuffix: true })}
-            </div>
-          )}
         </CardContent>
       </Card>
     </Link>
