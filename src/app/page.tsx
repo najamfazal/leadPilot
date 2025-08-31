@@ -20,7 +20,7 @@ import { LeadsContext } from '@/context/LeadsContext';
 import { LeadSegment } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { format, isSameDay, isPast, isToday, add } from 'date-fns';
+import { format, isSameDay, isPast, isToday, add, isTomorrow, isYesterday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Badge } from '@/components/ui/badge';
@@ -72,6 +72,14 @@ export default function Home() {
       ? allStandardTasks.filter(task => isSameDay(task.dueDate as Date, selectedDate))
       : allStandardTasks.filter(task => isToday(task.dueDate as Date));
   }, [allStandardTasks, filterTasksByDate, selectedDate]);
+
+  const getContextualDateTitle = (date: Date) => {
+    const d = new Date(date);
+    if (isToday(d)) return "Tasks for Today";
+    if (isTomorrow(d)) return "Tasks for Tomorrow";
+    if (isYesterday(d)) return "Tasks for Yesterday";
+    return `Tasks for ${format(d, 'PPP')}`;
+  }
 
 
   return (
@@ -165,7 +173,7 @@ export default function Home() {
                   )}
                   <TaskList
                       tasks={tasksForSelectedDate}
-                      title={format(filterTasksByDate && selectedDate ? selectedDate : new Date(), "'Tasks for' PPP")}
+                      title={getContextualDateTitle(filterTasksByDate && selectedDate ? selectedDate : new Date())}
                   />
                 </div>
               </TabsContent>
