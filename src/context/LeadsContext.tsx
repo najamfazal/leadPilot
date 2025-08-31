@@ -11,13 +11,13 @@ interface LeadsContextType {
   leads: Lead[];
   interactions: Interaction[];
   tasks: Task[];
-  addLead: (lead: Omit<Lead, 'id' | 'score' | 'createdAt' | 'status' | 'segment' | 'lastInteractionAt'>) => void;
+  addLead: (lead: Omit<Lead, 'id' | 'score' | 'createdAt' | 'status' | 'segment' | 'lastInteractionAt' | 'insights'>) => void;
   addInteraction: (leadId: string, interactionData: InteractionFormData, type: 'Engagement' | 'Touchpoint' | 'Creation', notes?: string) => Promise<void>;
   isLoading: boolean;
   getLeadResponsiveness: (leadId: string) => Responsiveness;
   completeTask: (taskId: string, leadId: string, isDay7FollowUp: boolean, isTouchpoint: boolean) => Promise<void>;
   manualSeedDatabase: () => Promise<void>;
-  updateLeadDetails: (leadId: string, details: Partial<Pick<Lead, 'note' | 'traits'>>) => Promise<void>;
+  updateLeadDetails: (leadId: string, details: Partial<Pick<Lead, 'note' | 'traits' | 'insights'>>) => Promise<void>;
 }
 
 export const LeadsContext = createContext<LeadsContextType>({
@@ -38,13 +38,13 @@ const seedDatabase = async () => {
     const now = new Date();
 
     const leadsToCreate = [
-        { id: 'lead1', name: 'Alex Johnson', phone: '111-222-3333', course: 'UX Design', score: 85, status: 'Active' as const, segment: 'Standard Follow-up' as const, lastInteractionAt: subDays(now, 1), traits: ['Pays for Value'], note: 'Mentioned they are evaluating two other bootcamps.'},
-        { id: 'lead2', name: 'Brenda Smith', phone: '222-333-4444', course: 'Data Science', score: 95, status: 'Active' as const, segment: 'Awaiting Event' as const, lastInteractionAt: subDays(now, 2), traits: ['Self-starter'], note: '' },
-        { id: 'lead3', name: 'Charlie Brown', phone: '333-444-5555', course: 'Web Development', score: 60, status: 'Active' as const, segment: 'Needs Nurturing' as const, lastInteractionAt: subDays(now, 4), traits: ['Price Sensitive', 'Needs Hand-holding'], note: 'Concerned about the total cost.' },
-        { id: 'lead4', name: 'Diana Prince', phone: '444-555-6666', course: 'AI Engineering', score: 70, status: 'Active' as const, segment: 'Action Required' as const, lastInteractionAt: subDays(now, 0), traits: [], note: '' },
-        { id: 'lead5', name: 'Ethan Hunt', phone: '555-666-7777', course: 'Cybersecurity', score: 90, status: 'Active' as const, segment: 'Payment Pending' as const, lastInteractionAt: subDays(now, 1), traits: [], note: 'Ready to sign up, just needs the payment link.' },
-        { id: 'lead6', name: 'Fiona Glenanne', phone: '666-777-8888', course: 'UX Design', score: 25, status: 'Archived' as const, segment: 'Standard Follow-up' as const, lastInteractionAt: subDays(now, 10), traits: [], note: 'Went with a competitor.' },
-        { id: 'lead7', name: 'George Costanza', phone: '777-888-9999', course: 'Product Management', score: 55, status: 'Active' as const, segment: 'Standard Follow-up' as const, lastInteractionAt: subDays(now, 6), traits: [], note: '' }
+        { id: 'lead1', name: 'Alex Johnson', phone: '111-222-3333', course: 'UX Design', score: 85, status: 'Active' as const, segment: 'Standard Follow-up' as const, lastInteractionAt: subDays(now, 1), traits: ['Pays for Value'], insights: ['Mentioned they are evaluating two other bootcamps.'], note: ''},
+        { id: 'lead2', name: 'Brenda Smith', phone: '222-333-4444', course: 'Data Science', score: 95, status: 'Active' as const, segment: 'Awaiting Event' as const, lastInteractionAt: subDays(now, 2), traits: ['Self-starter'], insights: [], note: '' },
+        { id: 'lead3', name: 'Charlie Brown', phone: '333-444-5555', course: 'Web Development', score: 60, status: 'Active' as const, segment: 'Needs Nurturing' as const, lastInteractionAt: subDays(now, 4), traits: ['Price Sensitive', 'Needs Hand-holding'], insights: ['Concerned about the total cost.'], note: '' },
+        { id: 'lead4', name: 'Diana Prince', phone: '444-555-6666', course: 'AI Engineering', score: 70, status: 'Active' as const, segment: 'Action Required' as const, lastInteractionAt: subDays(now, 0), traits: [], insights: [], note: '' },
+        { id: 'lead5', name: 'Ethan Hunt', phone: '555-666-7777', course: 'Cybersecurity', score: 90, status: 'Active' as const, segment: 'Payment Pending' as const, lastInteractionAt: subDays(now, 1), traits: [], insights: ['Ready to sign up, just needs the payment link.'], note: '' },
+        { id: 'lead6', name: 'Fiona Glenanne', phone: '666-777-8888', course: 'UX Design', score: 25, status: 'Archived' as const, segment: 'Standard Follow-up' as const, lastInteractionAt: subDays(now, 10), traits: [], insights: ['Went with a competitor.'], note: '' },
+        { id: 'lead7', name: 'George Costanza', phone: '777-888-9999', course: 'Product Management', score: 55, status: 'Active' as const, segment: 'Standard Follow-up' as const, lastInteractionAt: subDays(now, 6), traits: [], insights: [], note: '' }
     ];
 
     const tasksToCreate = [
@@ -109,6 +109,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
                 lastInteractionAt: (data.lastInteractionAt as Timestamp)?.toDate(),
                 note: data.note || '',
                 traits: data.traits || [],
+                insights: data.insights || [],
             } as Lead;
         });
 
@@ -315,7 +316,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [toast, interactions, fetchData]);
 
-  const addLead = useCallback(async (leadData: Omit<Lead, 'id' | 'score' | 'createdAt' | 'status' | 'segment' | 'lastInteractionAt'>) => {
+  const addLead = useCallback(async (leadData: Omit<Lead, 'id' | 'score' | 'createdAt' | 'status' | 'segment' | 'lastInteractionAt' | 'insights'>) => {
     setIsLoading(true);
     try {
         const newLeadData = {
@@ -327,6 +328,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
             lastInteractionAt: serverTimestamp(),
             note: leadData.note || '',
             traits: leadData.traits || [],
+            insights: [],
         };
         const docRef = await addDoc(collection(db, "leads"), newLeadData);
         
@@ -368,7 +370,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [tasks, fetchData, addInteraction]);
 
-  const updateLeadDetails = useCallback(async (leadId: string, details: Partial<Pick<Lead, 'note' | 'traits'>>) => {
+  const updateLeadDetails = useCallback(async (leadId: string, details: Partial<Pick<Lead, 'note' | 'traits' | 'insights'>>) => {
     setIsLoading(true);
     try {
         const leadRef = doc(db, "leads", leadId);
@@ -376,7 +378,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         await fetchData(true);
         toast({
             title: "Lead Updated",
-            description: "Note/traits have been saved.",
+            description: "Details have been saved.",
         });
     } catch (error) {
         console.error("Error updating lead details:", error);

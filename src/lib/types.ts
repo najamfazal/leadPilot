@@ -24,6 +24,7 @@ export type Lead = {
   segment: LeadSegment;
   lastInteractionAt?: Date | Timestamp;
   traits: string[];
+  insights: string[];
   note: string;
 };
 
