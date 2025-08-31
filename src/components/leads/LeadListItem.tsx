@@ -1,13 +1,13 @@
 'use client';
 import Link from 'next/link';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Lead } from '@/lib/types';
-import ScoreBadge from './ScoreBadge';
-import { ArrowRight, BookOpen, Calendar, Archive, Wrench, Wallet } from 'lucide-react';
+import { BookOpen, Calendar, Archive, Wrench, Wallet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LeadsContext } from '@/context/LeadsContext';
-import { useContext } from 'react';
+import { useContext, useState } from 'react';
 import { formatDistanceToNowStrict } from 'date-fns';
+import ScoreBadge from './ScoreBadge';
 
 type LeadListItemProps = {
   lead: Lead;
@@ -15,13 +15,20 @@ type LeadListItemProps = {
 
 export default function LeadListItem({ lead }: LeadListItemProps) {
   const { getLeadResponsiveness } = useContext(LeadsContext);
+  const [isLoading, setIsLoading] = useState(false);
   const responsiveness = getLeadResponsiveness(lead.id);
 
   const responsivenessClasses = {
-    hot: 'border-l-[3px] border-green-500',
-    warm: 'border-l-[3px] border-orange-500',
-    cold: 'border-l-[3px] border-blue-500',
+    hot: 'border-l-green-500',
+    warm: 'border-l-orange-500',
+    cold: 'border-l-blue-500',
   };
+  
+  const responsivenessProgressClasses = {
+      hot: 'bg-green-500',
+      warm: 'bg-orange-500',
+      cold: 'bg-blue-500',
+  }
 
   const getSegmentIcon = () => {
     switch (lead.segment) {
@@ -37,36 +44,46 @@ export default function LeadListItem({ lead }: LeadListItemProps) {
   }
 
   return (
-    <Link href={`/lead/${lead.id}`} className="block group transition-all duration-200 ease-in-out active:scale-[0.98]">
+    <Link 
+      href={`/lead/${lead.id}`} 
+      className="block group transition-all duration-200 ease-in-out active:scale-[0.98]"
+      onClick={() => setIsLoading(true)}
+    >
       <Card className={cn(
-        "hover:shadow-md transition-shadow duration-200 ease-in-out hover:border-primary/40",
+        "hover:shadow-md transition-shadow duration-200 ease-in-out hover:border-primary/20 relative overflow-hidden",
+        "border-l-4",
         responsivenessClasses[responsiveness],
         lead.status === 'Archived' ? 'opacity-60 hover:opacity-100' : ''
       )}>
-        <CardHeader className="p-3">
-          <div className="flex justify-between items-start">
-            <CardTitle className="text-lg font-semibold flex items-center gap-2">
-              {getSegmentIcon()}
-              {lead.name}
-              {lead.status === 'Archived' && <Archive className="h-4 w-4 text-muted-foreground" />}
-            </CardTitle>
-            <ScoreBadge score={lead.score} />
-          </div>
-        </CardHeader>
-        <CardContent className="flex items-center justify-between gap-2 p-3 pt-0">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <BookOpen className="h-3.5 w-3.5" />
-              <span className='font-semibold text-primary/80'>{lead.course}</span>
-          </div>
-          <div className='flex items-center gap-2'>
-            {lead.lastInteractionAt && (
-              <div className="text-xs text-muted-foreground">
+        <CardContent className="p-2.5">
+          <div className="flex justify-between items-start gap-2">
+             <div className="flex items-center gap-2 font-semibold">
+                {getSegmentIcon()}
+                {lead.name}
+                {lead.status === 'Archived' && <Archive className="h-4 w-4 text-muted-foreground" />}
+             </div>
+             {lead.lastInteractionAt && (
+              <div className="text-xs text-muted-foreground shrink-0">
                   {formatDistanceToNowStrict(new Date(lead.lastInteractionAt as Date), { addSuffix: true })}
               </div>
             )}
-            <ArrowRight className="h-4 w-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+          </div>
+          <div className="flex items-center justify-between gap-2 mt-1.5 text-xs">
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+                <BookOpen className="h-3 w-3" />
+                <span>{lead.course}</span>
+            </div>
+            <ScoreBadge score={lead.score} />
           </div>
         </CardContent>
+         {isLoading && (
+            <div className="absolute bottom-0 left-0 w-full h-[2px] bg-muted-foreground/20">
+                <div className={cn(
+                    "h-full animate-indeterminate-progress",
+                    responsivenessProgressClasses[responsiveness]
+                )}></div>
+            </div>
+        )}
       </Card>
     </Link>
   );
