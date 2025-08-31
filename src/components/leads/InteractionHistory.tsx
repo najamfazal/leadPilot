@@ -42,17 +42,13 @@ export default function InteractionHistory({ interactions }: InteractionHistoryP
   
   if (interactions.length === 0) {
     return (
-        <Card className="text-center py-8">
-            <CardHeader className='p-4'>
-                <div className="mx-auto bg-secondary rounded-full p-2.5 w-fit">
-                    <MessageSquare className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <CardTitle className="mt-3 text-lg">No Interactions Logged</CardTitle>
-            </CardHeader>
-            <CardContent className='p-4 pt-0'>
-                <p className="text-muted-foreground text-sm">Click "Log Interaction" to get started.</p>
-            </CardContent>
-        </Card>
+        <div className="text-center py-8 px-4">
+            <div className="mx-auto bg-secondary rounded-full p-2.5 w-fit">
+                <MessageSquare className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <h3 className="mt-3 text-lg font-semibold">No Interactions Logged</h3>
+            <p className="text-muted-foreground text-sm mt-1">Click "Log" to get started.</p>
+        </div>
     );
   }
 
@@ -72,14 +68,7 @@ export default function InteractionHistory({ interactions }: InteractionHistoryP
   }
 
   return (
-    <Card>
-      <CardHeader className='p-4'>
-        <div className="flex items-center gap-2">
-          <History className="h-5 w-5" />
-          <CardTitle className='text-xl'>Interaction History</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3 p-4 pt-0">
+    <div className="space-y-3 p-4 pt-0">
         {visibleInteractions.map((interaction, index) => {
           const prevInteraction = getPreviousInteraction(index);
 
@@ -123,7 +112,6 @@ export default function InteractionHistory({ interactions }: InteractionHistoryP
                 Load More
             </Button>
         )}
-      </CardContent>
-    </Card>
+      </div>
   );
 }

@@ -15,6 +15,7 @@ import { Input } from '../ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { cn } from '@/lib/utils';
 import { Badge } from '../ui/badge';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
 
 type LeadDetailsProps = {
   lead: Lead;
@@ -91,7 +92,7 @@ export default function LeadDetails({ lead, interactions, task }: LeadDetailsPro
               </span>
             </CardDescription>
           </div>
-          <div className="flex items-start gap-2">
+          <div className="flex flex-col items-end gap-2">
             <Dialog open={isLogInteractionOpen} onOpenChange={setIsLogInteractionOpen}>
               <DialogTrigger asChild>
                 <Button size="sm">
@@ -157,7 +158,7 @@ export default function LeadDetails({ lead, interactions, task }: LeadDetailsPro
            </div>
            
           {insights.length > 0 && (
-            <p className="text-sm text-muted-foreground italic">
+            <p className="text-sm text-muted-foreground italic pt-2">
               {insights.join(' ')}
             </p>
           )}
@@ -167,48 +168,62 @@ export default function LeadDetails({ lead, interactions, task }: LeadDetailsPro
 
       {task && (
           <Card>
-            <CardContent className="p-3">
-              <div className="bg-secondary p-3 rounded-lg flex items-center justify-between">
+            <CardContent className="p-2">
+              <div className="bg-secondary p-2 rounded-lg flex items-center justify-between">
                   <div className="flex items-center gap-3">
                       <Checkbox id="task" onCheckedChange={() => handleTaskComplete(task.id)} />
-                      <label htmlFor='task' className='font-medium'>Pending Task: <span className='font-normal'>{task.description}</span></label>
+                      <label htmlFor='task' className='font-medium text-sm'>Pending Task: <span className='font-normal'>{task.description}</span></label>
                   </div>
               </div>
             </CardContent>
           </Card>
       )}
 
-      <InteractionHistory interactions={interactions} />
-      
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Manage Insights</CardTitle>
-          <CardDescription>Add or remove short insights about the lead.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <Input 
-              placeholder="Add a new insight..."
-              value={newInsight}
-              onChange={(e) => setNewInsight(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleAddInsight();
-              }}
-            />
-            <Button onClick={handleAddInsight}>Add</Button>
-          </div>
-          <div className="space-y-2">
-            {insights.map((insight, index) => (
-              <div key={index} className="flex items-center justify-between p-2 rounded-md bg-secondary text-secondary-foreground text-sm">
-                <p>{insight}</p>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleRemoveInsight(index)}>
-                  <Trash2 className="h-4 w-4"/>
-                </Button>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <Accordion type="multiple" defaultValue={[]} className="w-full space-y-4">
+        <AccordionItem value="history" className="border-none">
+          <Card>
+            <AccordionTrigger className="p-4 text-lg font-semibold">
+              History
+            </AccordionTrigger>
+            <AccordionContent>
+                <InteractionHistory interactions={interactions} />
+            </AccordionContent>
+          </Card>
+        </AccordionItem>
+        
+        <AccordionItem value="insights" className="border-none">
+          <Card>
+            <AccordionTrigger className="p-4 text-lg font-semibold">
+                Insights
+            </AccordionTrigger>
+            <AccordionContent className="p-4 pt-0">
+                <div className="space-y-4">
+                    <div className="flex gap-2">
+                        <Input 
+                        placeholder="Add a new insight..."
+                        value={newInsight}
+                        onChange={(e) => setNewInsight(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleAddInsight();
+                        }}
+                        />
+                        <Button onClick={handleAddInsight}>Add</Button>
+                    </div>
+                    <div className="space-y-2">
+                        {insights.map((insight, index) => (
+                        <div key={index} className="flex items-center justify-between p-2 rounded-md bg-secondary text-secondary-foreground text-sm">
+                            <p>{insight}</p>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleRemoveInsight(index)}>
+                            <Trash2 className="h-4 w-4"/>
+                            </Button>
+                        </div>
+                        ))}
+                    </div>
+                </div>
+            </AccordionContent>
+          </Card>
+        </AccordionItem>
+      </Accordion>
       
     </div>
   );
