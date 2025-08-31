@@ -7,7 +7,7 @@ import React, { useContext, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { LeadsContext } from '@/context/LeadsContext';
-import { Lead, LEAD_INTENT_OPTIONS, LEAD_INTEREST_OPTIONS, ENGAGEMENT_OPTIONS, OUTCOME_TYPES, InteractionFormData } from '@/lib/types';
+import { Lead, LEAD_INTENT_OPTIONS, LEAD_INTEREST_OPTIONS, ENGAGEMENT_OPTIONS, OUTCOME_TYPES, InteractionFormData, LeadInterest } from '@/lib/types';
 import { CalendarIcon, Loader2, PlusCircle } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Calendar } from '../ui/calendar';
@@ -29,6 +29,15 @@ type InteractionFormProps = {
   setOpen: (open: boolean) => void;
 };
 
+const interestToEmoji: Record<LeadInterest, string> = {
+    'Love': '😍',
+    'High': '👍',
+    'Unsure': '🤔',
+    'Low': '👎',
+    'Hate': '😠'
+}
+
+
 export default function InteractionForm({ lead, setOpen }: InteractionFormProps) {
   const { addInteraction, isLoading } = useContext(LeadsContext);
   const [showOutcomes, setShowOutcomes] = useState(false);
@@ -36,7 +45,11 @@ export default function InteractionForm({ lead, setOpen }: InteractionFormProps)
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {},
+    defaultValues: {
+        interest: 'Unsure',
+        intent: 'Neutral',
+        engagement: 'Neutral'
+    },
   });
 
   const outcomeValue = form.watch('outcome');
@@ -165,7 +178,9 @@ export default function InteractionForm({ lead, setOpen }: InteractionFormProps)
                   {LEAD_INTEREST_OPTIONS.map(option => (
                     <FormItem key={option}>
                       <FormControl>
-                        <Button type="button" variant={field.value === option ? 'default' : 'outline'} onClick={() => field.onChange(option)} className="w-full" size="sm">{option}</Button>
+                        <Button type="button" variant={field.value === option ? 'default' : 'outline'} onClick={() => field.onChange(option)} className="w-full text-2xl" size="icon">
+                            {interestToEmoji[option]}
+                        </Button>
                       </FormControl>
                     </FormItem>
                   ))}
