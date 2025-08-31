@@ -18,22 +18,22 @@ export default function LeadDetailPage() {
   const fromTab = searchParams.get('from') || 'tasks';
 
   const leadId = params.id as string;
+
+  const lead = useMemo(() => leads.find(l => l.id === leadId), [leads, leadId]);
   
-  if (isLoading && !leads.find(l => l.id === leadId)) {
+  const leadInteractions = useMemo(() => interactions
+    .filter(i => i.leadId === leadId)
+    .sort((a, b) => (b.date as Date).getTime() - (a.date as Date).getTime()), [interactions, leadId]);
+    
+  const pendingTask = useMemo(() => tasks.find(t => t.leadId === leadId && !t.completed), [tasks, leadId]);
+
+  if (isLoading && !lead) {
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
-
-  const lead = useMemo(() => leads.find(l => l.id === leadId), [leads, leadId]);
-
-  const leadInteractions = useMemo(() => interactions
-    .filter(i => i.leadId === leadId)
-    .sort((a, b) => (b.date as Date).getTime() - (a.date as Date).getTime()), [interactions, leadId]);
-    
-  const pendingTask = useMemo(() => tasks.find(t => t.leadId === leadId && !t.completed), [tasks, leadId]);
 
   if (!lead) {
     return (
