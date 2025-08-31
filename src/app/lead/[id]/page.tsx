@@ -1,7 +1,7 @@
 'use client';
 
 import { useContext, useMemo } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { LeadsContext } from '@/context/LeadsContext';
 import LeadDetails from '@/components/leads/LeadDetails';
@@ -12,7 +12,10 @@ import Logo from '@/components/Logo';
 export default function LeadDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { leads, interactions, tasks, isLoading } = useContext(LeadsContext);
+
+  const fromTab = searchParams.get('from') || 'tasks';
 
   const leadId = params.id as string;
   
@@ -51,7 +54,7 @@ export default function LeadDetailPage() {
     <div className="flex flex-col h-screen bg-background">
        <header className="bg-card/80 backdrop-blur-sm border-b sticky top-0 z-10">
         <div className="container mx-auto flex items-center p-4 gap-4">
-            <Button variant="outline" size="icon" onClick={() => router.push('/')}>
+            <Button variant="outline" size="icon" onClick={() => router.push(`/?tab=${fromTab}`)}>
                 <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="flex items-center gap-2">

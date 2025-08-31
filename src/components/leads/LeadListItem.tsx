@@ -8,6 +8,7 @@ import { LeadsContext } from '@/context/LeadsContext';
 import { useContext, useState } from 'react';
 import { formatDistanceToNowStrict } from 'date-fns';
 import ScoreBadge from './ScoreBadge';
+import { usePathname, useSearchParams } from 'next/navigation';
 
 type LeadListItemProps = {
   lead: Lead;
@@ -17,6 +18,9 @@ export default function LeadListItem({ lead }: LeadListItemProps) {
   const { getLeadResponsiveness } = useContext(LeadsContext);
   const [isLoading, setIsLoading] = useState(false);
   const responsiveness = getLeadResponsiveness(lead.id);
+
+  const searchParams = useSearchParams();
+  const currentTab = searchParams.get('tab') || 'tasks';
 
   const responsivenessClasses = {
     hot: 'border-l-green-500',
@@ -45,7 +49,7 @@ export default function LeadListItem({ lead }: LeadListItemProps) {
 
   return (
     <Link 
-      href={`/lead/${lead.id}`} 
+      href={`/lead/${lead.id}?from=${currentTab}`} 
       className="block group transition-all duration-200 ease-in-out active:scale-[0.98]"
       onClick={() => setIsLoading(true)}
     >

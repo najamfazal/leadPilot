@@ -8,6 +8,7 @@ import { Timestamp } from 'firebase/firestore';
 import { Task } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 
 interface TaskListProps {
     tasks: Task[];
@@ -17,6 +18,8 @@ interface TaskListProps {
 export default function TaskList({ tasks: initialTasks, title }: TaskListProps) {
     const { leads, getLeadResponsiveness, isLoading: isContextLoading } = useContext(LeadsContext);
     const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null);
+    const searchParams = useSearchParams();
+    const currentTab = searchParams.get('tab') || 'tasks';
 
     const calculatedTasks = useMemo(() => {
         if (!leads.length) return [];
@@ -94,7 +97,7 @@ export default function TaskList({ tasks: initialTasks, title }: TaskListProps) 
                     
                     return (
                         <Link 
-                            href={`/lead/${task.leadId}`} 
+                            href={`/lead/${task.leadId}?from=${currentTab}`} 
                             key={task.id} 
                             className="block group transition-all duration-200 ease-in-out active:scale-[0.98]"
                             onClick={() => setLoadingTaskId(task.id)}

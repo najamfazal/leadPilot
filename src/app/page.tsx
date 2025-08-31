@@ -20,7 +20,7 @@ import { LeadsContext } from '@/context/LeadsContext';
 import { LeadSegment } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { format, isSameDay, isPast, isToday, add, isTomorrow, isYesterday } from 'date-fns';
+import { format, isSameDay, isPast, isToday, isTomorrow, isYesterday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +30,8 @@ import {
   CarouselContent,
   CarouselItem,
 } from '@/components/ui/carousel';
+import { useSearchParams, useRouter } from 'next/navigation';
+import EventList from '@/components/tasks/EventList';
 
 const TAB_VALUES = ["tasks", "leads", "nurture", "events"];
 
@@ -43,33 +45,44 @@ export default function Home() {
   const [isSeeding, setIsSeeding] = useState(false);
   const [showOverdue, setShowOverdue] = useState(false);
   const [api, setApi] = useState<CarouselApi>();
-  const [activeTab, setActiveTab] = useState("tasks");
+  
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const initialTab = searchParams.get('tab') || 'tasks';
+  const [activeTab, setActiveTab] = useState(TAB_VALUES.includes(initialTab) ? initialTab : 'tasks');
 
   useEffect(() => {
-    if (!api) {
-      return;
-    }
+    if (!api) return;
 
     const onSelect = () => {
       const newTab = TAB_VALUES[api.selectedScrollSnap()];
-      setActiveTab(newTab);
+      handleTabChange(newTab, true);
     };
 
     api.on("select", onSelect);
     
-    // Set initial active tab
-    onSelect();
+    // Set initial active tab based on query param
+    const tabIndex = TAB_VALUES.indexOf(activeTab);
+    if (tabIndex !== -1 && api.selectedScrollSnap() !== tabIndex) {
+        api.scrollTo(tabIndex, true);
+    }
+
 
     return () => {
       api.off("select", onSelect);
     };
-  }, [api]);
+  }, [api, activeTab]);
 
-  const handleTabChange = (value: string) => {
+  const handleTabChange = (value: string, fromCarousel = false) => {
     setActiveTab(value);
-    const tabIndex = TAB_VALUES.indexOf(value);
-    if (api && tabIndex !== -1) {
-      api.scrollTo(tabIndex);
+    const newPath = `/?tab=${value}`;
+    window.history.replaceState({ ...window.history.state, as: newPath, url: newPath }, '', newPath);
+    
+    if (!fromCarousel) {
+        const tabIndex = TAB_VALUES.indexOf(value);
+        if (api && tabIndex !== -1) {
+            api.scrollTo(tabIndex);
+        }
     }
   };
 
@@ -234,7 +247,7 @@ export default function Home() {
                          <TaskList tasks={getTasksBySegment('Needs Nurturing')} title="Nurturing Queue"/>
                     </CarouselItem>
                     <CarouselItem>
-                         <TaskList tasks={getTasksBySegment('Awaiting Event')} title="Upcoming Events"/>
+                         <EventList events={getTasksBySegment('Awaiting Event')} />
                     </CarouselItem>
                 </CarouselContent>
             </Carousel>
