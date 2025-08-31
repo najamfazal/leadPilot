@@ -51,7 +51,7 @@ export type Interaction = {
   interactionScore: number;
   previousScore: number;
   newScore: number;
-  type: 'Engagement' | 'Touchpoint'; // Added to distinguish log types
+  type: 'Engagement' | 'Touchpoint' | 'Creation'; // Added to distinguish log types
   notes?: string;
 };
 

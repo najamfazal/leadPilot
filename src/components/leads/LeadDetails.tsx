@@ -173,9 +173,10 @@ export default function LeadDetails({ lead, interactions, task }: LeadDetailsPro
         )}
       </Card>
       
+      <InteractionHistory interactions={interactions} />
+      
       {renderTraitsAndNotes()}
       
-      <InteractionHistory interactions={interactions} />
     </div>
   );
 }

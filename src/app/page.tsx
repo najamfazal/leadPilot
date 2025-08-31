@@ -175,7 +175,7 @@ export default function Home() {
              </div>
           ) : (
             <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto hide-scrollbar">
                 <TabsList className="min-w-max w-full grid grid-cols-4">
                     {TAB_VALUES.map(tab => (
                         <TabsTrigger key={tab} value={tab}>{tab.charAt(0).toUpperCase() + tab.slice(1)}</TabsTrigger>

@@ -12,7 +12,7 @@ interface LeadsContextType {
   interactions: Interaction[];
   tasks: Task[];
   addLead: (lead: Omit<Lead, 'id' | 'score' | 'createdAt' | 'status' | 'segment' | 'lastInteractionAt'>) => void;
-  addInteraction: (leadId: string, interactionData: InteractionFormData, type: 'Engagement' | 'Touchpoint', notes?: string) => Promise<void>;
+  addInteraction: (leadId: string, interactionData: InteractionFormData, type: 'Engagement' | 'Touchpoint' | 'Creation', notes?: string) => Promise<void>;
   isLoading: boolean;
   getLeadResponsiveness: (leadId: string) => Responsiveness;
   completeTask: (taskId: string, leadId: string, isDay7FollowUp: boolean, isTouchpoint: boolean) => Promise<void>;
@@ -177,66 +177,6 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     return 'cold';
   }, [leads]);
   
-  const completeTask = useCallback(async (taskId: string, leadId: string, isDay7FollowUp: boolean, isTouchpoint: boolean) => {
-    if (isTouchpoint) {
-      // This is a one-tap completion, create a simple interaction
-      const touchpointNotes = tasks.find(t => t.id === taskId)?.description + ' sent.';
-      await addInteraction(leadId, {} as InteractionFormData, 'Touchpoint', touchpointNotes);
-    } else {
-        // This is a manual completion without a full log (e.g., from an old workflow)
-        const batch = writeBatch(db);
-        const taskRef = doc(db, "tasks", taskId);
-        batch.update(taskRef, { completed: true });
-
-        if (isDay7FollowUp) {
-            const leadRef = doc(db, "leads", leadId);
-            batch.update(leadRef, { status: "Archived" });
-        }
-        await batch.commit();
-        await fetchData(true);
-    }
-  }, [tasks, fetchData]);
-
-
-  const addLead = useCallback(async (leadData: Omit<Lead, 'id' | 'score' | 'createdAt' | 'status' | 'segment' | 'lastInteractionAt'>) => {
-    setIsLoading(true);
-    try {
-      const newLeadData = {
-        ...leadData,
-        score: 50,
-        createdAt: serverTimestamp(),
-        status: 'Active' as const,
-        segment: 'Standard Follow-up' as const,
-        lastInteractionAt: serverTimestamp(),
-        note: leadData.note || '',
-        traits: leadData.traits || [],
-      };
-      const docRef = await addDoc(collection(db, "leads"), newLeadData);
-      
-      const newLeadForState: Lead = { 
-          ...newLeadData, 
-          id: docRef.id, 
-          createdAt: new Date(),
-          lastInteractionAt: new Date()
-      };
-      
-      setLeads(prevLeads => [newLeadForState, ...prevLeads].sort((a, b) => (b.lastInteractionAt as Date).getTime() - (a.lastInteractionAt as Date).getTime()));
-      toast({
-          title: 'Lead Added Successfully!',
-          description: `${newLeadData.name} has been added to your pipeline.`,
-      });
-    } catch (error) {
-       console.error("Error adding lead:", error);
-       toast({
-           variant: "destructive",
-           title: "Database Error",
-           description: "Could not add the new lead.",
-       });
-    } finally {
-        setIsLoading(false);
-    }
-  }, [toast]);
-
   const getNextFollowUpDay = (leadId: string): { day: number, date: Date } => {
     const followUpTasks = interactions.filter(i => i.leadId === leadId && i.notes?.includes('Follow up'));
     const sequence = [1, 3, 5, 7];
@@ -266,7 +206,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     return score;
   }
 
-  const addInteraction = useCallback(async (leadId: string, interactionData: InteractionFormData, type: 'Engagement' | 'Touchpoint', notes?: string) => {
+  const addInteraction = useCallback(async (leadId: string, interactionData: InteractionFormData, type: 'Engagement' | 'Touchpoint' | 'Creation', notes?: string) => {
     setIsLoading(true);
     try {
         await runTransaction(db, async (transaction) => {
@@ -317,11 +257,15 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
                     newSegment = 'Standard Follow-up';
                     newTaskData = { leadId, description: `Follow up with ${lead.name} (Day ${day})`, dueDate: date, segment: newSegment };
                 }
-            } else { // Touchpoint
+            } else if (type === 'Touchpoint') { 
                 updatedLeadScore = Math.max(0, Math.min(100, lead.score - 2)); // Score decay
                 const { day, date } = getNextFollowUpDay(leadId);
                 newSegment = 'Standard Follow-up';
                 newTaskData = { leadId, description: `Follow up with ${lead.name} (Day ${day})`, dueDate: date, segment: newSegment };
+            } else { // Creation
+                 const { day, date } = getNextFollowUpDay(leadId);
+                 newSegment = 'Standard Follow-up';
+                 newTaskData = { leadId, description: `Follow up with ${lead.name} (Day ${day})`, dueDate: date, segment: newSegment };
             }
 
             if (newTaskData) {
@@ -351,11 +295,13 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         });
       
       await fetchData(true);
-
-      toast({
-        title: "Interaction Logged!",
-        description: `Workflow updated successfully.`,
-      });
+      
+      if(type !== 'Creation') {
+        toast({
+            title: "Interaction Logged!",
+            description: `Workflow updated successfully.`,
+        });
+      }
 
     } catch (error) {
         console.error("Failed to process interaction:", error);
@@ -368,6 +314,59 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         setIsLoading(false);
     }
   }, [toast, interactions, fetchData]);
+
+  const addLead = useCallback(async (leadData: Omit<Lead, 'id' | 'score' | 'createdAt' | 'status' | 'segment' | 'lastInteractionAt'>) => {
+    setIsLoading(true);
+    try {
+        const newLeadData = {
+            ...leadData,
+            score: 50,
+            createdAt: serverTimestamp(),
+            status: 'Active' as const,
+            segment: 'Standard Follow-up' as const,
+            lastInteractionAt: serverTimestamp(),
+            note: leadData.note || '',
+            traits: leadData.traits || [],
+        };
+        const docRef = await addDoc(collection(db, "leads"), newLeadData);
+        
+        await addInteraction(docRef.id, {} as InteractionFormData, 'Creation', 'Lead Created');
+      
+        toast({
+            title: 'Lead Added Successfully!',
+            description: `${newLeadData.name} has been added to your pipeline.`,
+        });
+    } catch (error) {
+       console.error("Error adding lead:", error);
+       toast({
+           variant: "destructive",
+           title: "Database Error",
+           description: "Could not add the new lead.",
+       });
+    } finally {
+        setIsLoading(false);
+    }
+  }, [toast, addInteraction]);
+
+  const completeTask = useCallback(async (taskId: string, leadId: string, isDay7FollowUp: boolean, isTouchpoint: boolean) => {
+    if (isTouchpoint) {
+      // This is a one-tap completion, create a simple interaction
+      const touchpointNotes = tasks.find(t => t.id === taskId)?.description + ' sent.';
+      await addInteraction(leadId, {} as InteractionFormData, 'Touchpoint', touchpointNotes);
+    } else {
+        // This is a manual completion without a full log (e.g., from an old workflow)
+        const batch = writeBatch(db);
+        const taskRef = doc(db, "tasks", taskId);
+        batch.update(taskRef, { completed: true });
+
+        if (isDay7FollowUp) {
+            const leadRef = doc(db, "leads", leadId);
+            batch.update(leadRef, { status: "Archived" });
+        }
+        await batch.commit();
+        await fetchData(true);
+    }
+  }, [tasks, fetchData, addInteraction]);
 
   const updateLeadDetails = useCallback(async (leadId: string, details: Partial<Pick<Lead, 'note' | 'traits'>>) => {
     setIsLoading(true);
