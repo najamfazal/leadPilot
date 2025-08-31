@@ -3,10 +3,9 @@
 import { useContext, useMemo } from 'react';
 import { LeadsContext } from '@/context/LeadsContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ClipboardCheck, User, Loader2, Calendar, Wrench, AlertTriangle, Circle, Wallet } from 'lucide-react';
-import { formatDistanceToNow, isToday, isPast } from 'date-fns';
+import { ClipboardCheck, User, Loader2, Calendar, Wrench, Wallet } from 'lucide-react';
+import { isToday, isPast, formatDistanceToNowStrict } from 'date-fns';
 import { Badge } from '../ui/badge';
-import ScoreBadge from '../leads/ScoreBadge';
 import Link from 'next/link';
 import { Timestamp } from 'firebase/firestore';
 import { Task } from '@/lib/types';
@@ -19,7 +18,7 @@ interface TaskListProps {
 }
 
 export default function TaskList({ tasks: initialTasks, title }: TaskListProps) {
-    const { leads, getLeadResponsiveness, isLoading, completeTask } = useContext(LeadsContext);
+    const { leads, getLeadResponsiveness, isLoading } = useContext(LeadsContext);
 
     const calculatedTasks = useMemo(() => {
         if (!leads.length) return [];
@@ -27,61 +26,43 @@ export default function TaskList({ tasks: initialTasks, title }: TaskListProps) 
             const lead = leads.find(l => l.id === task.leadId);
             if (!lead || lead.status === 'Archived') return null;
 
-            const responsiveness = getLeadResponsiveness(lead.id);
-            let responsivenessValue = 0;
-            if (responsiveness === 'hot') responsivenessValue = 30;
-            if (responsiveness === 'warm') responsivenessValue = 15;
-
             let dueDate: Date;
             if (task.dueDate instanceof Timestamp) {
                 dueDate = task.dueDate.toDate();
             } else {
-                dueDate = task.dueDate;
+                dueDate = task.dueDate as Date;
             }
             
-            const isDueToday = isToday(dueDate);
-            const isOverdue = isPast(dueDate) && !isDueToday;
-            const urgencyValue = isDueToday ? 50 : isOverdue ? 75 : 0;
-            const priorityScore = lead.score + responsivenessValue + urgencyValue;
-
             return {
                 ...task,
                 leadName: lead.name,
-                leadScore: lead.score,
-                priorityScore,
+                responsiveness: getLeadResponsiveness(lead.id),
                 dueDate,
-                isDueToday,
-                isOverdue,
             }
         }).filter(Boolean);
     }, [initialTasks, leads, getLeadResponsiveness]);
 
     const sortedTasks = useMemo(() => {
         return calculatedTasks.sort((a, b) => {
-            const aDate = a!.dueDate instanceof Date ? a!.dueDate.getTime() : a!.dueDate.toMillis();
-            const bDate = b!.dueDate instanceof Date ? b!.dueDate.getTime() : b!.dueDate.toMillis();
+            const aDate = a!.dueDate.getTime();
+            const bDate = b!.dueDate.getTime();
             return aDate - bDate;
         });
     }, [calculatedTasks]);
 
-    const getPriorityIndicator = (score: number) => {
-        if (score > 120) return { color: "text-red-500", label: "Very High" };
-        if (score > 90) return { color: "text-orange-500", label: "High" };
-        if (score > 60) return { color: "text-yellow-500", label: "Medium" };
-        return { color: "text-gray-400", label: "Low" };
-    }
 
     const getDueDateLabel = (task: typeof sortedTasks[0]) => {
-        if (task!.isOverdue) return `Overdue by ${formatDistanceToNow(task!.dueDate)}`;
-        if (task!.isDueToday) return "Due Today";
-        return `Due in ${formatDistanceToNow(task!.dueDate)}`;
+        const dueDate = task!.dueDate;
+        if (isPast(dueDate) && !isToday(dueDate)) return `Overdue by ${formatDistanceToNowStrict(dueDate)}`;
+        if (isToday(dueDate)) return "Due Today";
+        return `Due in ${formatDistanceToNowStrict(dueDate)}`;
     }
 
-    const handleCompleteTask = async (e: React.MouseEvent, taskId: string, leadId: string, description: string) => {
-      e.preventDefault();
-      e.stopPropagation();
-      await completeTask(taskId, leadId, description.includes('Day 7'));
-    }
+    const responsivenessClasses = {
+        hot: 'before:bg-green-500 after:bg-green-500',
+        warm: 'before:bg-orange-500 after:bg-orange-500',
+        cold: 'before:bg-blue-500 after:bg-blue-500',
+    };
 
     if (isLoading && sortedTasks.length === 0) {
         return (
@@ -107,52 +88,41 @@ export default function TaskList({ tasks: initialTasks, title }: TaskListProps) 
         )
     }
 
+    const getTaskType = (description: string) => {
+        if (description.toLowerCase().includes('follow up')) return 'Follow-up';
+        if (description.toLowerCase().includes('close')) return 'Close';
+        if (description.toLowerCase().includes('nurture')) return 'Nurture';
+        return 'Action';
+    }
+
     return (
         <div className="space-y-2.5">
             {sortedTasks.map(task => {
-                const priority = getPriorityIndicator(task!.priorityScore);
-                const segmentIcon = () => {
-                    switch (task?.segment) {
-                        case 'Awaiting Event': return <Calendar className="h-4 w-4 text-primary" />;
-                        case 'Action Required': return <Wrench className="h-4 w-4 text-destructive" />;
-                        case 'Needs Nurturing': return <Wallet className="h-4 w-4 text-purple-500" />;
-                        default: return null;
-                    }
-                }
+                if (!task) return null;
+                const taskType = getTaskType(task.description);
+                const isOverdue = isPast(task.dueDate) && !isToday(task.dueDate);
 
                 return (
-                <Link href={`/lead/${task!.leadId}`} key={task!.id} className="block group transition-all duration-200 ease-in-out active:scale-[0.98]">
-                    <Card className="hover:border-primary/50 hover:shadow-md transition-all">
-                        <CardContent className="p-3 flex items-center justify-between gap-3">
-                           <div className="flex items-center gap-3">
-                             <Button size="icon" variant="ghost" className='h-6 w-6' onClick={(e) => handleCompleteTask(e, task!.id, task!.leadId, task!.description)}>
-                                <Circle className={cn("h-5 w-5 text-muted-foreground/50 group-hover:text-primary transition-colors", task!.completed && "text-green-500 fill-green-500/20")}/>
-                             </Button>
-                              <div className="flex-1 space-y-0.5">
-                                  <p className="font-semibold text-foreground flex items-center gap-2">
-                                    {segmentIcon()}
-                                    {task!.description}
-                                  </p>
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                      <User className="h-3 w-3" />
-                                      <span>{task!.leadName}</span>
-                                  </div>
-                              </div>
-                           </div>
-                            <div className="flex items-center gap-3 text-sm">
-                                <div className="flex items-center gap-1.5">
-                                    <Circle className={cn("h-2.5 w-2.5 rounded-full", priority.color.replace("text-", "bg-"))} />
-                                    <span className={cn('hidden md:inline', priority.color)}>{priority.label}</span>
-                                </div>
-                                <Badge variant={task!.isOverdue ? 'destructive' : task!.isDueToday ? 'secondary' : 'outline'} className="text-xs w-[100px] justify-center text-center">
+                    <Link href={`/lead/${task.leadId}`} key={task.id} className="block group transition-all duration-200 ease-in-out active:scale-[0.98]">
+                        <div className={cn(
+                            "relative overflow-hidden cursor-pointer bg-card text-card-foreground shadow-sm hover:shadow-md transition-all duration-200 ease-in-out active:scale-[0.99] active:border-primary/50 flex items-center justify-between p-2.5 rounded-lg border",
+                            "before:content-[''] before:absolute before:top-1 before:left-1 before:w-1 before:h-1 before:rounded-full after:content-[''] after:absolute after:bottom-1 after:left-1 after:w-1 after:h-1 after:rounded-full",
+                            responsivenessClasses[task.responsiveness]
+                        )}>
+                            <div className="pl-4 flex-grow">
+                                <p className="font-semibold text-foreground">{task.leadName}</p>
+                                <p className="text-xs text-muted-foreground">{task.description}</p>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                                <Badge variant="secondary" className="w-20 justify-center">{taskType}</Badge>
+                                <Badge variant={isOverdue ? 'destructive' : 'outline'} className="w-28 hidden sm:flex justify-center text-center">
                                     {getDueDateLabel(task)}
                                 </Badge>
-                                <ScoreBadge score={task!.leadScore} />
                             </div>
-                        </CardContent>
-                    </Card>
-                </Link>
-            )})}
+                        </div>
+                    </Link>
+                )
+            })}
         </div>
     );
 }

@@ -23,6 +23,8 @@ export type Lead = {
   status: LeadStatus;
   segment: LeadSegment;
   lastInteractionAt?: Date | Timestamp;
+  traits: string[];
+  note: string;
 };
 
 export const LEAD_INTEREST_OPTIONS = ['Love', 'High', 'Unsure', 'Low', 'Hate'] as const;
@@ -49,9 +51,11 @@ export type Interaction = {
   interactionScore: number;
   previousScore: number;
   newScore: number;
+  type: 'Engagement' | 'Touchpoint'; // Added to distinguish log types
+  notes?: string;
 };
 
-export interface InteractionFormData extends Omit<Interaction, 'id' | 'leadId' | 'date' | 'interactionScore' | 'previousScore' | 'newScore'> {
+export interface InteractionFormData extends Omit<Interaction, 'id' | 'leadId' | 'date' | 'interactionScore' | 'previousScore' | 'newScore' | 'type' | 'notes'> {
     // all fields are optional in the form, but will be processed in context
 }
 
@@ -65,3 +69,8 @@ export type Task = {
 };
 
 export type Responsiveness = 'hot' | 'warm' | 'cold';
+
+export const LEAD_TRAITS_OPTIONS = [
+  "Price Sensitive", "Pays for Value", "Needs Hand-holding", "Self-starter", 
+  "Referral Source", "Influencer", "Competitor Info", "Past Client"
+];

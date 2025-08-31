@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import React, { useContext, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -41,7 +41,7 @@ export default function InteractionForm({ lead, setOpen }: InteractionFormProps)
   const outcomeValue = form.watch('outcome');
   
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    await addInteraction(lead.id, values as InteractionFormData);
+    await addInteraction(lead.id, values as InteractionFormData, 'Engagement');
     form.reset();
     setOpen(false);
   }
@@ -67,9 +67,9 @@ export default function InteractionForm({ lead, setOpen }: InteractionFormProps)
                                 )}
                                 >
                                 {field.value ? (
-                                    format(new Date(field.value), "PPP p")
+                                    format(new Date(field.value), "PPP")
                                 ) : (
-                                    <span>Pick a date and time</span>
+                                    <span>Pick a date</span>
                                 )}
                                 <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                                 </Button>
@@ -83,8 +83,8 @@ export default function InteractionForm({ lead, setOpen }: InteractionFormProps)
                                 disabled={(date) =>
                                 date < new Date()
                                 }
+                                initialFocus
                             />
-                            {/* Simple time picker could go here if needed */}
                             </PopoverContent>
                         </Popover>
                         <FormMessage />

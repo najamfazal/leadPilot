@@ -1,6 +1,6 @@
 'use client';
 
-import { useContext } from 'react';
+import { useContext, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { LeadsContext } from '@/context/LeadsContext';
@@ -12,11 +12,11 @@ import Logo from '@/components/Logo';
 export default function LeadDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { leads, interactions, isLoading } = useContext(LeadsContext);
+  const { leads, interactions, tasks, isLoading } = useContext(LeadsContext);
 
   const leadId = params.id as string;
   
-  if (isLoading) {
+  if (isLoading && !leads.find(l => l.id === leadId)) {
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -24,10 +24,13 @@ export default function LeadDetailPage() {
     );
   }
 
-  const lead = leads.find(l => l.id === leadId);
-  const leadInteractions = interactions
+  const lead = useMemo(() => leads.find(l => l.id === leadId), [leads, leadId]);
+
+  const leadInteractions = useMemo(() => interactions
     .filter(i => i.leadId === leadId)
-    .sort((a, b) => (b.date as Date).getTime() - (a.date as Date).getTime());
+    .sort((a, b) => (b.date as Date).getTime() - (a.date as Date).getTime()), [interactions, leadId]);
+    
+  const pendingTask = useMemo(() => tasks.find(t => t.leadId === leadId && !t.completed), [tasks, leadId]);
 
   if (!lead) {
     return (
@@ -59,7 +62,7 @@ export default function LeadDetailPage() {
       </header>
       <main className="flex-1 overflow-y-auto">
         <div className="container mx-auto p-4 md:p-6">
-          <LeadDetails lead={lead} interactions={leadInteractions} />
+          <LeadDetails lead={lead} interactions={leadInteractions} task={pendingTask} />
         </div>
       </main>
     </div>

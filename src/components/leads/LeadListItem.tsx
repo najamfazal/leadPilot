@@ -1,13 +1,12 @@
 'use client';
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Lead, Interaction } from '@/lib/types';
+import { Lead } from '@/lib/types';
 import ScoreBadge from './ScoreBadge';
 import { ArrowRight, BookOpen, Calendar, Archive, Wrench, Wallet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LeadsContext } from '@/context/LeadsContext';
 import { useContext } from 'react';
-import { Badge } from '../ui/badge';
 import { formatDistanceToNowStrict } from 'date-fns';
 
 type LeadListItemProps = {
@@ -19,9 +18,9 @@ export default function LeadListItem({ lead }: LeadListItemProps) {
   const responsiveness = getLeadResponsiveness(lead.id);
 
   const responsivenessClasses = {
-    hot: 'border-l-4 border-green-500',
-    warm: 'border-l-4 border-orange-500',
-    cold: 'border-l-4 border-blue-500',
+    hot: 'border-l-[3px] border-green-500',
+    warm: 'border-l-[3px] border-orange-500',
+    cold: 'border-l-[3px] border-blue-500',
   };
 
   const getSegmentIcon = () => {

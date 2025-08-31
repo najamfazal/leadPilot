@@ -39,7 +39,7 @@ export default function AddLeadForm({ setOpen }: AddLeadFormProps) {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    addLead(values);
+    addLead({ ...values, traits: [], note: '' });
     form.reset();
     setOpen(false);
   }

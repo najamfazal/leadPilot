@@ -1,22 +1,23 @@
 'use client';
 
 import React, { createContext, useState, useCallback, ReactNode, useMemo, useEffect } from 'react';
-import { Lead, Interaction, Task, Responsiveness, LeadSegment, InteractionFormData, LeadInterest, LeadIntent, Engagement, OutcomeType } from '@/lib/types';
+import { Lead, Interaction, Task, Responsiveness, LeadSegment, InteractionFormData, Interaction as InteractionType } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { add, subDays, isPast } from 'date-fns';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, getDocs, query, where, Timestamp, orderBy, doc, updateDoc, writeBatch, serverTimestamp, getCountFromServer } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, Timestamp, orderBy, doc, updateDoc, writeBatch, serverTimestamp, runTransaction } from 'firebase/firestore';
 
 interface LeadsContextType {
   leads: Lead[];
   interactions: Interaction[];
   tasks: Task[];
-  addLead: (lead: Omit<Lead, 'id' | 'score' | 'createdAt' | 'status' | 'segment'>) => void;
-  addInteraction: (leadId: string, interactionData: InteractionFormData) => Promise<void>;
+  addLead: (lead: Omit<Lead, 'id' | 'score' | 'createdAt' | 'status' | 'segment' | 'lastInteractionAt'>) => void;
+  addInteraction: (leadId: string, interactionData: InteractionFormData, type: 'Engagement' | 'Touchpoint', notes?: string) => Promise<void>;
   isLoading: boolean;
   getLeadResponsiveness: (leadId: string) => Responsiveness;
-  completeTask: (taskId: string, leadId: string, isDay7FollowUp: boolean) => Promise<void>;
+  completeTask: (taskId: string, leadId: string, isDay7FollowUp: boolean, isTouchpoint: boolean) => Promise<void>;
   manualSeedDatabase: () => Promise<void>;
+  updateLeadDetails: (leadId: string, details: Partial<Pick<Lead, 'note' | 'traits'>>) => Promise<void>;
 }
 
 export const LeadsContext = createContext<LeadsContextType>({
@@ -29,6 +30,7 @@ export const LeadsContext = createContext<LeadsContextType>({
   getLeadResponsiveness: () => 'cold',
   completeTask: async () => {},
   manualSeedDatabase: async () => {},
+  updateLeadDetails: async () => {},
 });
 
 const seedDatabase = async () => {
@@ -36,13 +38,13 @@ const seedDatabase = async () => {
     const now = new Date();
 
     const leadsToCreate = [
-        { id: 'lead1', name: 'Alex Johnson', phone: '111-222-3333', course: 'UX Design', score: 85, status: 'Active' as const, segment: 'Standard Follow-up' as const, lastInteractionAt: subDays(now, 1)},
-        { id: 'lead2', name: 'Brenda Smith', phone: '222-333-4444', course: 'Data Science', score: 95, status: 'Active' as const, segment: 'Awaiting Event' as const, lastInteractionAt: subDays(now, 2) },
-        { id: 'lead3', name: 'Charlie Brown', phone: '333-444-5555', course: 'Web Development', score: 60, status: 'Active' as const, segment: 'Needs Nurturing' as const, lastInteractionAt: subDays(now, 4) },
-        { id: 'lead4', name: 'Diana Prince', phone: '444-555-6666', course: 'AI Engineering', score: 70, status: 'Active' as const, segment: 'Action Required' as const, lastInteractionAt: subDays(now, 0) },
-        { id: 'lead5', name: 'Ethan Hunt', phone: '555-666-7777', course: 'Cybersecurity', score: 90, status: 'Active' as const, segment: 'Payment Pending' as const, lastInteractionAt: subDays(now, 1) },
-        { id: 'lead6', name: 'Fiona Glenanne', phone: '666-777-8888', course: 'UX Design', score: 25, status: 'Archived' as const, segment: 'Standard Follow-up' as const, lastInteractionAt: subDays(now, 10) },
-        { id: 'lead7', name: 'George Costanza', phone: '777-888-9999', course: 'Product Management', score: 55, status: 'Active' as const, segment: 'Standard Follow-up' as const, lastInteractionAt: subDays(now, 6) }
+        { id: 'lead1', name: 'Alex Johnson', phone: '111-222-3333', course: 'UX Design', score: 85, status: 'Active' as const, segment: 'Standard Follow-up' as const, lastInteractionAt: subDays(now, 1), traits: ['Pays for Value'], note: 'Mentioned they are evaluating two other bootcamps.'},
+        { id: 'lead2', name: 'Brenda Smith', phone: '222-333-4444', course: 'Data Science', score: 95, status: 'Active' as const, segment: 'Awaiting Event' as const, lastInteractionAt: subDays(now, 2), traits: ['Self-starter'], note: '' },
+        { id: 'lead3', name: 'Charlie Brown', phone: '333-444-5555', course: 'Web Development', score: 60, status: 'Active' as const, segment: 'Needs Nurturing' as const, lastInteractionAt: subDays(now, 4), traits: ['Price Sensitive', 'Needs Hand-holding'], note: 'Concerned about the total cost.' },
+        { id: 'lead4', name: 'Diana Prince', phone: '444-555-6666', course: 'AI Engineering', score: 70, status: 'Active' as const, segment: 'Action Required' as const, lastInteractionAt: subDays(now, 0), traits: [], note: '' },
+        { id: 'lead5', name: 'Ethan Hunt', phone: '555-666-7777', course: 'Cybersecurity', score: 90, status: 'Active' as const, segment: 'Payment Pending' as const, lastInteractionAt: subDays(now, 1), traits: [], note: 'Ready to sign up, just needs the payment link.' },
+        { id: 'lead6', name: 'Fiona Glenanne', phone: '666-777-8888', course: 'UX Design', score: 25, status: 'Archived' as const, segment: 'Standard Follow-up' as const, lastInteractionAt: subDays(now, 10), traits: [], note: 'Went with a competitor.' },
+        { id: 'lead7', name: 'George Costanza', phone: '777-888-9999', course: 'Product Management', score: 55, status: 'Active' as const, segment: 'Standard Follow-up' as const, lastInteractionAt: subDays(now, 6), traits: [], note: '' }
     ];
 
     const tasksToCreate = [
@@ -54,14 +56,14 @@ const seedDatabase = async () => {
         { leadId: 'lead7', description: 'Follow up with George Costanza (Day 7)', dueDate: add(now, { days: 1 }), segment: 'Standard Follow-up' as const, completed: false }
     ];
     
-    const interactionsToCreate = [
-        { leadId: 'lead1', date: subDays(now, 1), interest: 'High', intent: 'High', engagement: 'Positive', interactionScore: 55, previousScore: 30, newScore: 85},
-        { leadId: 'lead2', date: subDays(now, 2), interest: 'Love', intent: 'High', engagement: 'Positive', interactionScore: 55, previousScore: 40, newScore: 95, outcome: 'Demo', outcomeDetail: add(now, {days: 3}).toISOString()},
-        { leadId: 'lead3', date: subDays(now, 4), interest: 'Unsure', intent: 'Neutral', engagement: 'Neutral', interactionScore: -10, previousScore: 70, newScore: 60},
-        { leadId: 'lead4', date: now, interest: 'High', intent: 'Neutral', engagement: 'Positive', interactionScore: 5, previousScore: 65, newScore: 70, outcome: 'NeedsInfo', outcomeDetail: 'Send course brochure'},
-        { leadId: 'lead5', date: subDays(now, 1), interest: 'Love', intent: 'High', engagement: 'Positive', interactionScore: 55, previousScore: 35, newScore: 90, outcome: 'PayLink'},
-        { leadId: 'lead6', date: subDays(now, 10), interest: 'Low', intent: 'Low', engagement: 'Negative', interactionScore: -50, previousScore: 75, newScore: 25},
-        { leadId: 'lead7', date: subDays(now, 6), interest: 'Unsure', intent: 'Low', engagement: 'Neutral', interactionScore: -30, previousScore: 85, newScore: 55},
+    const interactionsToCreate: Omit<Interaction, 'id'>[] = [
+        { leadId: 'lead1', date: subDays(now, 1), type: 'Engagement', interest: 'High', intent: 'High', engagement: 'Positive', interactionScore: 55, previousScore: 30, newScore: 85},
+        { leadId: 'lead2', date: subDays(now, 2), type: 'Engagement', interest: 'Love', intent: 'High', engagement: 'Positive', interactionScore: 55, previousScore: 40, newScore: 95, outcome: 'Demo', outcomeDetail: add(now, {days: 3}).toISOString()},
+        { leadId: 'lead3', date: subDays(now, 4), type: 'Engagement', interest: 'Unsure', intent: 'Neutral', engagement: 'Neutral', interactionScore: -10, previousScore: 70, newScore: 60},
+        { leadId: 'lead4', date: now, type: 'Engagement', interest: 'High', intent: 'Neutral', engagement: 'Positive', interactionScore: 5, previousScore: 65, newScore: 70, outcome: 'NeedsInfo', outcomeDetail: 'Send course brochure'},
+        { leadId: 'lead5', date: subDays(now, 1), type: 'Engagement', interest: 'Love', intent: 'High', engagement: 'Positive', interactionScore: 55, previousScore: 35, newScore: 90, outcome: 'PayLink'},
+        { leadId: 'lead6', date: subDays(now, 10), type: 'Engagement', interest: 'Low', intent: 'Low', engagement: 'Negative', interactionScore: -50, previousScore: 75, newScore: 25},
+        { leadId: 'lead7', date: subDays(now, 6), type: 'Touchpoint', interest: 'Unsure', intent: 'Neutral', engagement: 'Neutral', interactionScore: 0, previousScore: 55, newScore: 55, notes: 'Day 5 follow-up sent.'},
     ]
 
     leadsToCreate.forEach(lead => {
@@ -96,7 +98,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     }
     try {
         const leadsColl = collection(db, "leads");
-        const leadsQuery = query(leadsColl);
+        const leadsQuery = query(leadsColl, orderBy('lastInteractionAt', 'desc'));
         const leadsSnapshot = await getDocs(leadsQuery);
         const leadsData = leadsSnapshot.docs.map(doc => {
             const data = doc.data();
@@ -104,15 +106,12 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
                 id: doc.id, 
                 ...data, 
                 createdAt: (data.createdAt as Timestamp)?.toDate(),
-                lastInteractionAt: (data.lastInteractionAt as Timestamp)?.toDate()
+                lastInteractionAt: (data.lastInteractionAt as Timestamp)?.toDate(),
+                note: data.note || '',
+                traits: data.traits || [],
             } as Lead;
         });
 
-        leadsData.sort((a, b) => {
-            const dateA = a.lastInteractionAt ? (a.lastInteractionAt as Date).getTime() : 0;
-            const dateB = b.lastInteractionAt ? (b.lastInteractionAt as Date).getTime() : 0;
-            return dateB - dateA;
-        });
         setLeads(leadsData);
 
         if (leadsData.length > 0) {
@@ -151,7 +150,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     try {
         await seedDatabase();
-        await fetchData(true); // Force a refresh after seeding
+        await fetchData(true);
         toast({
             title: "Success!",
             description: "Dummy data has been added to your CRM.",
@@ -178,41 +177,25 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     return 'cold';
   }, [leads]);
   
-  const completeTask = useCallback(async (taskId: string, leadId: string, isDay7FollowUp: boolean) => {
-    const batch = writeBatch(db);
-    const taskRef = doc(db, "tasks", taskId);
-    batch.update(taskRef, { completed: true });
+  const completeTask = useCallback(async (taskId: string, leadId: string, isDay7FollowUp: boolean, isTouchpoint: boolean) => {
+    if (isTouchpoint) {
+      // This is a one-tap completion, create a simple interaction
+      const touchpointNotes = tasks.find(t => t.id === taskId)?.description + ' sent.';
+      await addInteraction(leadId, {} as InteractionFormData, 'Touchpoint', touchpointNotes);
+    } else {
+        // This is a manual completion without a full log (e.g., from an old workflow)
+        const batch = writeBatch(db);
+        const taskRef = doc(db, "tasks", taskId);
+        batch.update(taskRef, { completed: true });
 
-    if (isDay7FollowUp) {
-      const leadRef = doc(db, "leads", leadId);
-      batch.update(leadRef, { status: "Archived" });
-    }
-
-    try {
-        await batch.commit();
-        setTasks(prevTasks => prevTasks.filter(t => t.id !== taskId));
         if (isDay7FollowUp) {
-            setLeads(prevLeads => prevLeads.map(l => l.id === leadId ? { ...l, status: 'Archived' } : l));
-             toast({
-                title: "Task Completed & Lead Archived",
-                description: "The Day 7 follow-up was completed, and the lead has been archived.",
-            });
-        } else {
-            toast({
-                title: "Task Completed!",
-                description: "The task has been marked as complete.",
-            });
+            const leadRef = doc(db, "leads", leadId);
+            batch.update(leadRef, { status: "Archived" });
         }
-    } catch (error) {
-        console.error("Error completing task: ", error);
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Could not complete the task.",
-        });
+        await batch.commit();
+        await fetchData(true);
     }
-
-  }, [toast]);
+  }, [tasks, fetchData]);
 
 
   const addLead = useCallback(async (leadData: Omit<Lead, 'id' | 'score' | 'createdAt' | 'status' | 'segment' | 'lastInteractionAt'>) => {
@@ -225,6 +208,8 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         status: 'Active' as const,
         segment: 'Standard Follow-up' as const,
         lastInteractionAt: serverTimestamp(),
+        note: leadData.note || '',
+        traits: leadData.traits || [],
       };
       const docRef = await addDoc(collection(db, "leads"), newLeadData);
       
@@ -235,7 +220,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
           lastInteractionAt: new Date()
       };
       
-      setLeads(prevLeads => [newLeadForState, ...prevLeads]);
+      setLeads(prevLeads => [newLeadForState, ...prevLeads].sort((a, b) => (b.lastInteractionAt as Date).getTime() - (a.lastInteractionAt as Date).getTime()));
       toast({
           title: 'Lead Added Successfully!',
           description: `${newLeadData.name} has been added to your pipeline.`,
@@ -253,12 +238,13 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
   }, [toast]);
 
   const getNextFollowUpDay = (leadId: string): { day: number, date: Date } => {
-    const followUpTasks = tasks.filter(t => t.leadId === leadId && t.description.includes('Follow up'));
+    const followUpTasks = interactions.filter(i => i.leadId === leadId && i.notes?.includes('Follow up'));
     const sequence = [1, 3, 5, 7];
     if (followUpTasks.length === 0) {
         return { day: 1, date: add(new Date(), { days: 1 }) };
     }
-    const lastFollowUpDayMatch = [...followUpTasks].sort((a,b) => (b.dueDate as Date).getTime() - (a.dueDate as Date).getTime())[0].description.match(/Day (\d+)/);
+    const lastFollowUpNote = [...followUpTasks].sort((a, b) => (b.date as Date).getTime() - (a.date as Date).getTime())[0].notes;
+    const lastFollowUpDayMatch = lastFollowUpNote?.match(/Day (\d+)/);
     const lastFollowUpDay = lastFollowUpDayMatch ? parseInt(lastFollowUpDayMatch[1]) : 0;
     const nextIndex = sequence.indexOf(lastFollowUpDay) + 1;
 
@@ -269,7 +255,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     return { day: 7, date: add(new Date(), { days: 7 }) };
   }
 
-  const calculateInteractionScore = (interest: LeadInterest, intent: LeadIntent, engagement: Engagement) => {
+  const calculateInteractionScore = (interest: InteractionType['interest'], intent: InteractionType['intent'], engagement: InteractionType['engagement']) => {
     let score = 0;
     const interestScores = { 'Love': 20, 'High': 10, 'Unsure': -5, 'Low': -15, 'Hate': -30 };
     const intentScores = { 'High': 25, 'Neutral': 0, 'Low': -20 };
@@ -280,83 +266,95 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     return score;
   }
 
-  const addInteraction = useCallback(async (leadId: string, interactionData: InteractionFormData) => {
-    const lead = leads.find(l => l.id === leadId);
-    if (!lead) return;
-
+  const addInteraction = useCallback(async (leadId: string, interactionData: InteractionFormData, type: 'Engagement' | 'Touchpoint', notes?: string) => {
     setIsLoading(true);
     try {
-      const interactionScore = calculateInteractionScore(interactionData.interest, interactionData.intent, interactionData.engagement);
-      const updatedLeadScore = Math.max(0, Math.min(100, lead.score + interactionScore));
-      
-      const batch = writeBatch(db);
+        await runTransaction(db, async (transaction) => {
+            const leadRef = doc(db, "leads", leadId);
+            const leadDoc = await transaction.get(leadRef);
+            if (!leadDoc.exists()) throw new Error("Lead not found!");
 
-      const newInteractionData = {
-        ...interactionData,
-        leadId,
-        date: serverTimestamp(),
-        interactionScore,
-        previousScore: lead.score,
-        newScore: updatedLeadScore,
-      };
-      const interactionRef = doc(collection(db, "interactions"));
-      batch.set(interactionRef, newInteractionData);
-      
-      let newSegment: LeadSegment = lead.segment;
-      let newTaskData: Omit<Task, 'id' | 'completed'> | null = null;
-      const outcome = interactionData.outcome;
+            const lead = leadDoc.data() as Lead;
+            let interactionScore = 0;
+            let updatedLeadScore = lead.score;
+            
+            // Mark existing task as complete
+            const existingTaskQuery = query(collection(db, "tasks"), where("leadId", "==", leadId), where("completed", "==", false));
+            const existingTaskSnapshot = await getDocs(existingTaskQuery);
+            existingTaskSnapshot.forEach(taskDoc => {
+                transaction.update(taskDoc.ref, { completed: true });
+            });
 
-      if (outcome === 'Demo' || outcome === 'Visit') {
-        newSegment = 'Awaiting Event';
-        newTaskData = { leadId, description: `🗓️ ${outcome} with ${lead.name}`, dueDate: new Date(interactionData.outcomeDetail!), segment: newSegment };
-      } else if (outcome === 'PayLink') {
-        newSegment = 'Payment Pending';
-        newTaskData = { leadId, description: `💰 Close ${lead.name}: Follow up on payment link`, dueDate: add(new Date(), { days: 1 }), segment: newSegment };
-      } else if (outcome === 'FollowLater') {
-        newSegment = 'Standard Follow-up';
-        newTaskData = { leadId, description: `Follow up with ${lead.name}`, dueDate: new Date(interactionData.outcomeDetail!), segment: newSegment };
-      } else if (outcome === 'NeedsInfo') {
-        newSegment = 'Action Required';
-        newTaskData = { leadId, description: `🛠️ ${interactionData.outcomeDetail}`, dueDate: new Date(), segment: newSegment };
-      } else if (
-        (interactionData.interest === 'Unsure' || interactionData.interest === 'High') &&
-        (interactionData.intent === 'Neutral' || interactionData.intent === 'Low')
-      ) {
-        newSegment = 'Needs Nurturing';
-        newTaskData = { leadId, description: `Nurture ${lead.name}: Send value content`, dueDate: add(new Date(), { days: 2 }), segment: newSegment };
-      } else {
-        const { day, date } = getNextFollowUpDay(leadId);
-        newSegment = 'Standard Follow-up';
-        newTaskData = { leadId, description: `Follow up with ${lead.name} (Day ${day})`, dueDate: date, segment: newSegment };
-      }
+            const newInteractionRef = doc(collection(db, "interactions"));
+            let newSegment: LeadSegment = lead.segment;
+            let newTaskData: Omit<Task, 'id' | 'completed'> | null = null;
+            
+            if (type === 'Engagement') {
+                interactionScore = calculateInteractionScore(interactionData.interest, interactionData.intent, interactionData.engagement);
+                updatedLeadScore = Math.max(0, Math.min(100, lead.score + interactionScore));
+                const outcome = interactionData.outcome;
 
-      if (newTaskData) {
-        const finalTaskData = { ...newTaskData, completed: false };
-        const taskRef = doc(collection(db, "tasks"));
-        batch.set(taskRef, finalTaskData);
+                if (outcome === 'Demo' || outcome === 'Visit') {
+                    newSegment = 'Awaiting Event';
+                    newTaskData = { leadId, description: `🗓️ ${outcome} with ${lead.name}`, dueDate: new Date(interactionData.outcomeDetail!), segment: newSegment };
+                } else if (outcome === 'PayLink') {
+                    newSegment = 'Payment Pending';
+                    newTaskData = { leadId, description: `💰 Close ${lead.name}: Follow up on payment link`, dueDate: add(new Date(), { days: 1 }), segment: newSegment };
+                } else if (outcome === 'FollowLater') {
+                    newSegment = 'Standard Follow-up';
+                    newTaskData = { leadId, description: `Follow up with ${lead.name}`, dueDate: new Date(interactionData.outcomeDetail!), segment: newSegment };
+                } else if (outcome === 'NeedsInfo') {
+                    newSegment = 'Action Required';
+                    newTaskData = { leadId, description: `🛠️ ${interactionData.outcomeDetail}`, dueDate: new Date(), segment: newSegment };
+                } else if (
+                    (interactionData.interest === 'Unsure' || interactionData.interest === 'High') &&
+                    (interactionData.intent === 'Neutral' || interactionData.intent === 'Low')
+                ) {
+                    newSegment = 'Needs Nurturing';
+                    newTaskData = { leadId, description: `Nurture ${lead.name}: Send value content`, dueDate: add(new Date(), { days: 2 }), segment: newSegment };
+                } else {
+                    const { day, date } = getNextFollowUpDay(leadId);
+                    newSegment = 'Standard Follow-up';
+                    newTaskData = { leadId, description: `Follow up with ${lead.name} (Day ${day})`, dueDate: date, segment: newSegment };
+                }
+            } else { // Touchpoint
+                updatedLeadScore = Math.max(0, Math.min(100, lead.score - 2)); // Score decay
+                const { day, date } = getNextFollowUpDay(leadId);
+                newSegment = 'Standard Follow-up';
+                newTaskData = { leadId, description: `Follow up with ${lead.name} (Day ${day})`, dueDate: date, segment: newSegment };
+            }
 
-        const oldTasksQuery = query(collection(db, "tasks"), where("leadId", "==", leadId), where("completed", "==", false));
-        const oldTasksSnapshot = await getDocs(oldTasksQuery);
-        oldTasksSnapshot.forEach(doc => {
-            batch.update(doc.ref, { completed: true });
+            if (newTaskData) {
+                const finalTaskData = { ...newTaskData, completed: false };
+                const taskRef = doc(collection(db, "tasks"));
+                transaction.set(taskRef, finalTaskData);
+            }
+
+            const newInteractionData = {
+                ...interactionData,
+                leadId,
+                date: serverTimestamp(),
+                interactionScore,
+                previousScore: lead.score,
+                newScore: updatedLeadScore,
+                type,
+                notes: notes || '',
+            };
+            transaction.set(newInteractionRef, newInteractionData);
+            
+            transaction.update(leadRef, { 
+                score: updatedLeadScore, 
+                segment: newSegment, 
+                status: 'Active', 
+                lastInteractionAt: serverTimestamp() 
+            });
         });
-      }
       
-      const leadRef = doc(db, "leads", leadId);
-      batch.update(leadRef, { 
-        score: updatedLeadScore, 
-        segment: newSegment, 
-        status: 'Active', 
-        lastInteractionAt: serverTimestamp() 
-      });
-      
-      await batch.commit();
-
       await fetchData(true);
 
       toast({
         title: "Interaction Logged!",
-        description: `Lead score for ${lead.name} is now ${updatedLeadScore}.`,
+        description: `Workflow updated successfully.`,
       });
 
     } catch (error) {
@@ -369,7 +367,29 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     } finally {
         setIsLoading(false);
     }
-  }, [leads, toast, tasks, fetchData]);
+  }, [toast, interactions, fetchData]);
+
+  const updateLeadDetails = useCallback(async (leadId: string, details: Partial<Pick<Lead, 'note' | 'traits'>>) => {
+    setIsLoading(true);
+    try {
+        const leadRef = doc(db, "leads", leadId);
+        await updateDoc(leadRef, details);
+        await fetchData(true);
+        toast({
+            title: "Lead Updated",
+            description: "Note/traits have been saved.",
+        });
+    } catch (error) {
+        console.error("Error updating lead details:", error);
+        toast({
+            variant: "destructive",
+            title: "Update Failed",
+            description: "Could not save lead details.",
+        });
+    } finally {
+        setIsLoading(false);
+    }
+  }, [toast, fetchData]);
 
   const contextValue = useMemo(() => ({
       leads,
@@ -381,7 +401,8 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
       getLeadResponsiveness,
       completeTask,
       manualSeedDatabase,
-  }), [leads, interactions, tasks, addLead, addInteraction, isLoading, getLeadResponsiveness, completeTask, manualSeedDatabase]);
+      updateLeadDetails
+  }), [leads, interactions, tasks, addLead, addInteraction, isLoading, getLeadResponsiveness, completeTask, manualSeedDatabase, updateLeadDetails]);
 
   return (
     <LeadsContext.Provider value={contextValue}>
