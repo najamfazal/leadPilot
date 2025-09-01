@@ -5,3 +5,8 @@ runConfig:
   # Increase this value if you'd like to automatically spin up
   # more instances in response to increased traffic.
   maxInstances: 1
+# Specifies the location of your source code.
+codebase:
+  # The directory that contains your source code.
+  # If you want to use a different directory, update this value.
+  root: .
