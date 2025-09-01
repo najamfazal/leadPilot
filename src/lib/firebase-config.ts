@@ -1,8 +1,6 @@
 // @ts-nocheck
-// This is a placeholder for your Firebase configuration.
-// In a real-world application, you would populate this with your actual
-// Firebase project's configuration settings. For this prototype, we'll
-// use placeholder values that will be substituted by the environment.
+// This file reads your Firebase configuration from environment variables.
+// It is pre-configured to work with the .env file in your project root.
 
 export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_API_KEY,
