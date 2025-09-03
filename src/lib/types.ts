@@ -56,7 +56,7 @@ export type Interaction = {
   notes?: string;
 };
 
-export interface InteractionFormData extends Omit<Interaction, 'id' | 'leadId' | 'date' | 'interactionScore' | 'previousScore' | 'newScore' | 'type' | 'notes'> {
+export interface InteractionFormData extends Partial<Omit<Interaction, 'id' | 'leadId' | 'date' | 'interactionScore' | 'previousScore' | 'newScore' | 'type' | 'notes'>> {
     // all fields are optional in the form, but will be processed in context
 }
 
@@ -75,3 +75,5 @@ export const LEAD_TRAITS_OPTIONS = [
   "Price Sensitive", "Pays for Value", "Needs Hand-holding", "Self-starter", 
   "Referral Source", "Influencer", "Competitor Info", "Past Client"
 ];
+
+    

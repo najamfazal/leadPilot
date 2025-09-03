@@ -1,11 +1,12 @@
+
 'use client';
 
 import React, { createContext, useState, useCallback, ReactNode, useMemo, useEffect } from 'react';
-import { Lead, Interaction, Task, Responsiveness, LeadSegment, InteractionFormData, Interaction as InteractionType } from '@/lib/types';
+import { Lead, Interaction, Task, Responsiveness, LeadSegment, InteractionFormData, Interaction as InteractionType, LeadStatus } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { add, subDays } from 'date-fns';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, getDocs, query, where, Timestamp, orderBy, doc, updateDoc, writeBatch, serverTimestamp, runTransaction, getDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, Timestamp, orderBy, doc, updateDoc, writeBatch, serverTimestamp, runTransaction, getDoc, setDoc } from 'firebase/firestore';
 
 interface LeadsContextType {
   leads: Lead[];
@@ -275,7 +276,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         };
         
         // --- Update React State Immediately ---
-        setLeads(prev => prev.map(l => l.id === leadId ? { ...l, score: updatedLeadScore, segment: newSegment, status: 'Active', lastInteractionAt: now } : l).sort((a, b) => (b.lastInteractionAt as Date).getTime() - (a.lastInteractionAt as Date).getTime()));
+        setLeads(prev => prev.map(l => l.id === leadId ? { ...l, score: updatedLeadScore, segment: newSegment, status: 'Active' as LeadStatus, lastInteractionAt: now } : l).sort((a, b) => (b.lastInteractionAt as Date).getTime() - (a.lastInteractionAt as Date).getTime()));
         setInteractions(prev => [...prev, newInteraction]);
         setTasks(prev => {
             const otherTasks = prev.filter(t => t.leadId !== leadId);
@@ -371,7 +372,7 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
         setIsLoading(true);
         setTasks(prev => prev.filter(t => t.id !== taskId));
         if (isDay7FollowUp) {
-            setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: 'Archived' } : l));
+            setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: 'Archived' as LeadStatus } : l));
         }
         try {
             const batch = writeBatch(db);
@@ -433,3 +434,5 @@ export const LeadsProvider = ({ children }: { children: ReactNode }) => {
     </LeadsContext.Provider>
   );
 };
+
+    
