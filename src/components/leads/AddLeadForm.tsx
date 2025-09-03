@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -39,7 +40,13 @@ export default function AddLeadForm({ setOpen }: AddLeadFormProps) {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    addLead({ ...values, traits: [], note: '' });
+    addLead({ 
+        name: values.name,
+        phone: values.phone,
+        course: values.course,
+        traits: [], 
+        note: '' 
+    });
     form.reset();
     setOpen(false);
   }
